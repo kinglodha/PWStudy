@@ -6,18 +6,80 @@ import android.content.*;
 import android.view.*;
 import android.widget.*;
 import java.io.*;
+import java.util.*;
 
 public class LibraryActivity extends Activity {
+
     LinearLayout list;
-    @Override public void onCreate(Bundle b){
+    String selectedSubject = "Physics";
+
+    @Override
+    public void onCreate(Bundle b) {
         super.onCreate(b);
-        ScrollView sc=new ScrollView(this); list=new LinearLayout(this); list.setPadding(24,24,24,24); list.setOrientation(1); sc.addView(list);
-        TextView title=new TextView(this); title.setText("OFFLINE STUDY LIBRARY"); title.setTextSize(22); list.addView(title);
-        addSection("PHYSICS"); addSection("CHEMISTRY"); addSection("BIOLOGY");
-        TextView note=new TextView(this); note.setText("\nDownloaded files will appear here. Organize them by Subject → Chapter → Lecture/PDF."); list.addView(note);
-        Button browse=new Button(this); browse.setText("Open phone Downloads"); list.addView(browse);
-        browse.setOnClickListener(v->{ Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT); i.setType("*/*"); i.addCategory(Intent.CATEGORY_OPENABLE); startActivityForResult(i,2);});
-        setContentView(sc);
+        showSubjects();
     }
-    void addSection(String name){ TextView t=new TextView(this); t.setText("\n"+name+"  ›"); t.setTextSize(19); t.setPadding(0,24,0,8); list.addView(t); }
-}
+
+    File getFolder(String subject) {
+        File root = new File(getExternalFilesDir(null), "PWStudy");
+        File folder = new File(root, subject);
+
+        if (!folder.exists()) folder.mkdirs();
+
+        return folder;
+    }
+
+    void setup(String title) {
+        ScrollView scroll = new ScrollView(this);
+
+        list = new LinearLayout(this);
+        list.setOrientation(1);
+        list.setPadding(20, 20, 20, 20);
+        list.setBackgroundColor(0xFF000000);
+
+        scroll.addView(list);
+        setContentView(scroll);
+
+        TextView heading = new TextView(this);
+        heading.setText(title);
+        heading.setTextSize(25);
+        heading.setTextColor(0xFFFFFFFF);
+        heading.setPadding(5, 20, 5, 25);
+
+        list.addView(heading);
+    }
+
+    void showSubjects() {
+        setup("PWStudy  •  Offline Library");
+
+        list.addView(label(
+            "Your downloaded study materials"
+        ));
+
+        addSubject("Physics");
+        addSubject("Chemistry");
+        addSubject("Biology");
+    }
+
+    void addSubject(String subject) {
+        Button button = new Button(this);
+        button.setText(subject + "  →");
+        button.setTextColor(0xFFFFFFFF);
+        button.setBackgroundTintList(
+            android.content.res.ColorStateList.valueOf(0xFF181818)
+        );
+
+        list.addView(button);
+
+        button.setOnClickListener(v -> {
+            selectedSubject = subject;
+            showFiles();
+        });
+    }
+
+    TextView label(String value) {
+        TextView t = new TextView(this);
+        t.setText(value);
+        t.setTextSize(16);
+        t.setTextColor(0xFFBBBBBB);
+        t.setPadding(8, 15, 8, 15);
+       
