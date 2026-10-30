@@ -23,7 +23,9 @@ public class LibraryActivity extends Activity {
         File root = new File(getExternalFilesDir(null), "PWStudy");
         File folder = new File(root, subject);
 
-        if (!folder.exists()) folder.mkdirs();
+        if (!folder.exists()) {
+            folder.mkdirs();
+        }
 
         return folder;
     }
@@ -49,11 +51,9 @@ public class LibraryActivity extends Activity {
     }
 
     void showSubjects() {
-        setup("PWStudy  •  Offline Library");
+        setup("PWStudy • Offline Library");
 
-        list.addView(label(
-            "Your downloaded study materials"
-        ));
+        list.addView(label("Your downloaded study materials"));
 
         addSubject("Physics");
         addSubject("Chemistry");
@@ -62,7 +62,7 @@ public class LibraryActivity extends Activity {
 
     void addSubject(String subject) {
         Button button = new Button(this);
-        button.setText(subject + "  →");
+        button.setText(subject + " →");
         button.setTextColor(0xFFFFFFFF);
         button.setBackgroundTintList(
             android.content.res.ColorStateList.valueOf(0xFF181818)
@@ -82,4 +82,14 @@ public class LibraryActivity extends Activity {
         t.setTextSize(16);
         t.setTextColor(0xFFBBBBBB);
         t.setPadding(8, 15, 8, 15);
-       
+        return t;
+    }
+
+    void showFiles() {
+        setup(selectedSubject);
+
+        Button back = new Button(this);
+        back.setText("← Back");
+        list.addView(back);
+
+        back
