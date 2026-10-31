@@ -1,691 +1,160 @@
 package com.study.pwjarvis;
 
-import android.app.*;
-import android.os.*;
-import android.content.*;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
-import android.view.*;
-import android.view.inputmethod.InputMethodManager;
-import android.widget.*;
-import java.io.*;
-import java.text.*;
-import java.util.*;
+import android.os.Bundle;
+import android.view.Gravity;
+import android.widget.ArrayAdapter;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ListView;
+import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.io.File;
+import java.text.DateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
 public class LibraryActivity extends Activity {
-
-    LinearLayout list;
-    EditText searchBox;
-
-    String selectedSubject = "Physics";
-    String sortMode = "date";
-
-    final int PICK_FILES = 1001;
-
-    int BLACK = 0xFF000000;
-    int CARD = 0xFF181818;
-    int WHITE = 0xFFFFFFFF;
-    int GREY = 0xFFAAAAAA;
-
-    @Override
-    public void onCreate(Bundle b) {
-        super.onCreate(b);
-        showSubjects();
-    }
-
-    // Main storage folder
-    File getRoot() {
-        File root = new File(
-            getExternalFilesDir(null),
-            "PWStudy"
-        );
-
-        if (!root.exists()) {
-            root.mkdirs();
-        }
-
-        return root;
-    }
-
-    // Subject folder
-    File getFolder(String subject) {
-
-        File folder = new File(getRoot(), subject);
-
-        if (!folder.exists()) {
-            folder.mkdirs();
-        }
-
-        return folder;
-    }
-
-    // Main screen setup
-    void setup(String title) {
-
-        ScrollView scroll = new ScrollView(this);
-
-        list = new LinearLayout(this);
-        list.setOrientation(1);
-        list.setPadding(18, 15, 18, 25);
-        list.setBackgroundColor(BLACK);
-
-        scroll.addView(list);
-        setContentView(scroll);
-
-        TextView heading = new TextView(this);
-        heading.setText(title);
-        heading.setTextSize(25);
-        heading.setTextColor(WHITE);
-        heading.setPadding(5, 20, 5, 25);
-
-        list.addView(heading);
-    }
-
-    // Text label
-    TextView label(String value) {
-
-        TextView t = new TextView(this);
-
-        t.setText(value);
-        t.setTextSize(15);
-        t.setTextColor(GREY);
-        t.setPadding(8, 12, 8, 12);
-
-        return t;
-    }
-
-    // Button
-    Button makeButton(String text) {
-
-        Button b = new Button(this);
-
-        b.setText(text);
-        b.setTextColor(WHITE);
-        b.setAllCaps(false);
-
-        b.setBackgroundTintList(
-            android.content.res.ColorStateList.valueOf(CARD)
-        );
-
-        return b;
-    }
-
-    // Subject screen
-    void showSubjects() {
-
-        setup("PWStudy");
-
-        list.addView(label("OFFLINE STUDY LIBRARY"));
-
-        list.addView(label(
-            "Your study materials are stored inside PWStudy."
-        ));
-
-        addSubject("Physics");
-        addSubject("Chemistry");
-        addSubject("Biology");
-
-        list.addView(label("STORAGE INFORMATION"));
-
-        list.addView(label(
-            "Storage: " + getRoot().getAbsolutePath()
-        ));
-
-        Button refresh = makeButton("↻ Refresh Library");
-        list.addView(refresh);
-
-        refresh.setOnClickListener(v -> showSubjects());
-    }
-
-    // Subject card
-    void addSubject(String subject) {
-
-        File folder = getFolder(subject);
-
-        int count = folder.listFiles() == null
-            ? 0 : folder.listFiles().length;
-
-        Button button = makeButton(
-            subject + "   →   " + count + " files"
-        );
-
-        list.addView(button);
-
-        button.setOnClickListener(v -> {
-
-            selectedSubject = subject;
-            showFiles();
-        });
-    }
-
-    // Subject files screen
-    void showFiles() {
-
-        setup(selectedSubject);
-
-        Button back = makeButton("← Back to Subjects");
-        list.addView(back);
-
-        back.setOnClickListener(v -> showSubjects());
-
-        list.addView(label("YOUR FILES"));
-
-        // Search
-        searchBox = new EditText(this);
-
-        searchBox.setSingleLine(true);
-        searchBox.setHint("Search files...");
-        searchBox.setHintTextColor(GREY);
-        searchBox.setTextColor(WHITE);
-        searchBox.setPadding(15, 12, 15, 12);
-        searchBox.setBackgroundTintList(
-            android.content.res.ColorStateList.valueOf(GREY)
-        );
-
-        list.addView(searchBox);
-
-        // Import
-        Button importButton = makeButton("+ Import Files");
-        list.addView(importButton);
-
-        importButton.setOnClickListener(v -> importFiles());
-
-        // Sorting
-        Button sortButton = makeButton("⇅ Sort: " + sortMode);
-        list.addView(sortButton);
-
-        sortButton.setOnClickListener(v -> {
-
-            if (sortMode.equals("date")) {
-                sortMode = "name";
-            } else {
-                sortMode = "date";
-            }
-
-            showFiles();
-        });
-
-        // Refresh
-        Button refresh = makeButton("↻ Refresh");
-        list.addView(refresh);
-
-        refresh.setOnClickListener(v -> showFiles());
-
-        // File list
-        list.addView(label("DOWNLOADED MATERIALS"));
-
-        displayFiles("");
-        
-        searchBox.addTextChangedListener(
-            new android.text.TextWatcher() {
-
-                public void beforeTextChanged(
-                    CharSequence s, int start,
-                    int count, int after
-                ) {}
-
-                public void onTextChanged(
-                    CharSequence s, int start,
-                    int before, int count
-                ) {
-                    displayFiles(s.toString());
-                }
-
-                public void afterTextChanged(
-                    android.text.Editable e
-                ) {}
-            }
-        );
-    }
-
-    // Display files
-    void displayFiles(String query) {
-
-        // Remove old file cards, keep top controls
-        int start = 8;
-
-        if (list.getChildCount() > start) {
-            list.removeViews(
-                start,
-                list.getChildCount() - start
-            );
-        }
-
-        File folder = getFolder(selectedSubject);
-        File[] files = folder.listFiles();
-
-        if (files == null || files.length == 0) {
-
-            list.addView(label(
-                "No files found. Import your study materials."
-            ));
-
-            return;
-        }
-
-        Arrays.sort(files, (a, b) -> {
-
-            if (sortMode.equals("name")) {
-                return a.getName().compareToIgnoreCase(b.getName());
-            }
-
-            return Long.compare(
-                b.lastModified(),
-                a.lastModified()
-            );
-        });
-
-        int shown = 0;
-
-        for (File file : files) {
-
-            if (!file.isFile()) continue;
-
-            if (!file.getName().toLowerCase().contains(
-                query.toLowerCase()
-            )) continue;
-
-            shown++;
-
-            addFileCard(file);
-        }
-
-        if (shown == 0) {
-            list.addView(label("No matching files."));
-        }
-    }
-
-    // File card
-    void addFileCard(File file) {
-
-        LinearLayout card = new LinearLayout(this);
-
-        card.setOrientation(1);
-        card.setPadding(12, 12, 12, 12);
-        card.setBackgroundColor(CARD);
-
-        LinearLayout.LayoutParams params =
-            new LinearLayout.LayoutParams(
-                -1, -2
-            );
-
-        params.setMargins(0, 7, 0, 7);
-
-        card.setLayoutParams(params);
-
-        TextView name = new TextView(this);
-
-        name.setText("📄 " + file.getName());
-        name.setTextColor(WHITE);
-        name.setTextSize(16);
-
-        card.addView(name);
-
-        TextView info = new TextView(this);
-
-        info.setText(
-            formatSize(file.length()) +
-            "   •   " +
-            formatDate(file.lastModified())
-        );
-
-        info.setTextColor(GREY);
-        info.setTextSize(12);
-
-        card.addView(info);
-
-        Button options = makeButton("File Options");
-        card.addView(options);
-
-        options.setOnClickListener(v -> showFileOptions(file));
-
-        card.setOnClickListener(v -> showFileOptions(file));
-
-        list.addView(card);
-    }
-
-    // Import multiple files
-    void importFiles() {
-
-        Intent intent = new Intent(
-            Intent.ACTION_OPEN_DOCUMENT
-        );
-
-        intent.setType("*/*");
-
-        intent.addCategory(
-            Intent.CATEGORY_OPENABLE
-        );
-
-        intent.putExtra(
-            Intent.EXTRA_ALLOW_MULTIPLE,
-            true
-        );
-
-        startActivityForResult(intent, PICK_FILES);
+    private final String[] folders = {"All", "Physics", "Chemistry", "Biology", "Documents", "Videos"};
+    private File base;
+    private Spinner filter;
+    private ListView list;
+    private final List<File> shown = new ArrayList<>();
+
+    private int dp(int v) {
+        return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
     }
 
     @Override
-    protected void onActivityResult(
-        int requestCode,
-        int resultCode,
-        Intent data
-    ) {
-
-        super.onActivityResult(
-            requestCode,
-            resultCode,
-            data
-        );
-
-        if (requestCode != PICK_FILES ||
-            resultCode != RESULT_OK ||
-            data == null) {
-            return;
+    protected void onCreate(Bundle state) {
+        super.onCreate(state);
+        base = new File(getExternalFilesDir(null), "PWStudy");
+        for (String folder : folders) {
+            if (!folder.equals("All")) new File(base, folder).mkdirs();
         }
 
-        int imported = 0;
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(12), dp(8), dp(12), dp(8));
+        root.setBackgroundColor(Color.rgb(12, 16, 25));
 
-        if (data.getClipData() != null) {
+        TextView title = new TextView(this);
+        title.setText("OFFLINE LIBRARY");
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(22);
+        title.setGravity(Gravity.CENTER);
+        root.addView(title, new LinearLayout.LayoutParams(-1, dp(54)));
 
-            android.content.ClipData clip =
-                data.getClipData();
+        filter = new Spinner(this);
+        filter.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, folders));
+        root.addView(filter, new LinearLayout.LayoutParams(-1, dp(50)));
 
-            for (int i = 0; i < clip.getItemCount(); i++) {
+        Button home = new Button(this);
+        home.setText("Back to Home");
+        home.setOnClickListener(v -> finish());
+        root.addView(home, new LinearLayout.LayoutParams(-1, dp(46)));
 
-                Uri uri = clip.getItemAt(i).getUri();
-
-                if (copyFile(uri)) {
-                    imported++;
-                }
-            }
-
-        } else if (data.getData() != null) {
-
-            if (copyFile(data.getData())) {
-                imported++;
-            }
-        }
-
-        Toast.makeText(
-            this,
-            imported + " file(s) imported",
-            Toast.LENGTH_LONG
-        ).show();
-
-        showFiles();
-    }
-
-    // Copy imported file into PWStudy
-    boolean copyFile(Uri uri) {
-
-        try {
-
-            String name = "Imported_" +
-                System.currentTimeMillis();
-
-            String mime = getContentResolver()
-                .getType(uri);
-
-            if (mime != null) {
-
-                String ext = android.webkit.MimeTypeMap
-                    .getSingleton()
-                    .getExtensionFromMimeType(mime);
-
-                if (ext != null) {
-                    name += "." + ext;
-                }
-            }
-
-            File destination = new File(
-                getFolder(selectedSubject),
-                name
-            );
-
-            InputStream input =
-                getContentResolver().openInputStream(uri);
-
-            if (input == null) return false;
-
-            FileOutputStream output =
-                new FileOutputStream(destination);
-
-            byte[] buffer = new byte[8192];
-
-            int length;
-
-            while ((length = input.read(buffer)) > 0) {
-                output.write(buffer, 0, length);
-            }
-
-            input.close();
-            output.close();
-
+        list = new ListView(this);
+        root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
+        filter.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(android.widget.AdapterView<?> parent, android.view.View view, int position, long id) { refresh(); }
+            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
+        });
+        list.setOnItemClickListener((parent, view, position, id) -> openFile(shown.get(position)));
+        list.setOnItemLongClickListener((parent, view, position, id) -> {
+            showFileActions(shown.get(position));
             return true;
+        });
+        setContentView(root);
+    }
 
-        } catch (Exception e) {
+    @Override protected void onResume() { super.onResume(); refresh(); }
 
-            Toast.makeText(
-                this,
-                "Import failed: " + e.getMessage(),
-                Toast.LENGTH_LONG
-            ).show();
+    private void refresh() {
+        if (list == null || filter == null) return;
+        shown.clear();
+        String selected = String.valueOf(filter.getSelectedItem());
+        if ("All".equals(selected)) {
+            for (String folder : folders) if (!folder.equals("All")) collect(new File(base, folder));
+        } else collect(new File(base, selected));
+        shown.sort((a, b) -> Long.compare(b.lastModified(), a.lastModified()));
 
-            return false;
+        List<String> labels = new ArrayList<>();
+        for (File f : shown) {
+            String folder = f.getParentFile() == null ? "" : f.getParentFile().getName();
+            labels.add(f.getName() + "\n" + folder + "  •  " + readableSize(f.length()) +
+                    "  •  " + DateFormat.getDateInstance().format(new Date(f.lastModified())));
         }
+        if (labels.isEmpty()) labels.add("No downloaded files yet.\nOpen Website and download a document or video.");
+        list.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels));
     }
 
-    // File options
-    void showFileOptions(File file) {
-
-        String[] options = {
-            "Open",
-            "Rename",
-            "Delete",
-            "File Details"
-        };
-
-        new AlertDialog.Builder(this)
-            .setTitle(file.getName())
-            .setItems(options, (dialog, which) -> {
-
-                if (which == 0) {
-                    openFile(file);
-                }
-
-                if (which == 1) {
-                    renameFile(file);
-                }
-
-                if (which == 2) {
-                    deleteFile(file);
-                }
-
-                if (which == 3) {
-                    showDetails(file);
-                }
-
-            })
-            .show();
+    private void collect(File folder) {
+        File[] files = folder.listFiles();
+        if (files == null) return;
+        for (File file : files) if (file.isFile()) shown.add(file);
     }
 
-    // Open file
-    void openFile(File file) {
-
+    private void openFile(File file) {
         String name = file.getName().toLowerCase();
-
-        if (name.endsWith(".mp4") ||
-            name.endsWith(".mkv") ||
-            name.endsWith(".webm") ||
-            name.endsWith(".mp3")) {
-
-            Intent intent = new Intent(
-                this,
-                PlayerActivity.class
-            );
-
-            intent.putExtra(
-                "video_uri",
-                Uri.fromFile(file).toString()
-            );
-
-            startActivity(intent);
-
+        Intent intent;
+        if (name.endsWith(".pdf")) {
+            intent = new Intent(this, PdfActivity.class);
+            intent.putExtra("file_path", file.getAbsolutePath());
+        } else if (name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".webm") ||
+                name.endsWith(".mov") || name.endsWith(".mp3") || name.endsWith(".m4v")) {
+            intent = new Intent(this, PlayerActivity.class);
+            intent.putExtra("file_path", file.getAbsolutePath());
         } else {
-
-            Toast.makeText(
-                this,
-                "PDF viewing needs a working PDF viewer. " +
-                "Your current PdfActivity is only a placeholder.",
-                Toast.LENGTH_LONG
-            ).show();
+            Toast.makeText(this, "इस फ़ाइल का viewer उपलब्ध नहीं है।", Toast.LENGTH_SHORT).show();
+            return;
         }
+        startActivity(intent);
     }
 
-    // Rename
-    void renameFile(File file) {
+    private void showFileActions(File file) {
+        String[] actions = {"Open", "Rename", "Delete", "Details"};
+        new AlertDialog.Builder(this).setTitle(file.getName()).setItems(actions, (d, which) -> {
+            if (which == 0) openFile(file);
+            else if (which == 1) rename(file);
+            else if (which == 2) new AlertDialog.Builder(this).setMessage("Delete this file?")
+                    .setNegativeButton("Cancel", null).setPositiveButton("Delete", (x, y) -> {
+                        if (file.delete()) Toast.makeText(this, "Deleted", Toast.LENGTH_SHORT).show();
+                        refresh();
+                    }).show();
+            else new AlertDialog.Builder(this).setMessage("Path: " + file.getAbsolutePath() +
+                    "\nSize: " + readableSize(file.length())).setPositiveButton("OK", null).show();
+        }).show();
+    }
 
-        EditText input = new EditText(this);
-
+    private void rename(File file) {
+        android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(true);
         input.setText(file.getName());
-        input.setTextColor(WHITE);
-
-        new AlertDialog.Builder(this)
-            .setTitle("Rename File")
-            .setView(input)
-            .setPositiveButton("Save", (d, w) -> {
-
-                String newName =
-                    input.getText().toString().trim();
-
-                if (newName.isEmpty()) return;
-
-                File newFile = new File(
-                    file.getParent(),
-                    newName
-                );
-
-                if (newFile.exists()) {
-
-                    Toast.makeText(
-                        this,
-                        "A file with this name already exists",
-                        Toast.LENGTH_SHORT
-                    ).show();
-
-                    return;
-                }
-
-                if (file.renameTo(newFile)) {
-
-                    Toast.makeText(
-                        this,
-                        "File renamed",
-                        Toast.LENGTH_SHORT
-                    ).show();
-
-                    showFiles();
-
-                } else {
-
-                    Toast.makeText(
-                        this,
-                        "Rename failed",
-                        Toast.LENGTH_SHORT
-                    ).show();
-                }
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
+        new AlertDialog.Builder(this).setTitle("Rename file").setView(input)
+                .setNegativeButton("Cancel", null).setPositiveButton("Save", (d, w) -> {
+                    String newName = input.getText().toString().trim();
+                    if (newName.isEmpty() || newName.contains("/") || newName.contains("\\")) {
+                        Toast.makeText(this, "Invalid file name", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    File target = new File(file.getParentFile(), newName);
+                    if (target.exists()) Toast.makeText(this, "यह नाम पहले से मौजूद है।", Toast.LENGTH_SHORT).show();
+                    else if (file.renameTo(target)) refresh();
+                    else Toast.makeText(this, "Rename failed", Toast.LENGTH_SHORT).show();
+                }).show();
     }
 
-    // Delete
-    void deleteFile(File file) {
-
-        new AlertDialog.Builder(this)
-            .setTitle("Delete File?")
-            .setMessage(
-                "Are you sure you want to delete " +
-                file.getName() + "?"
-            )
-            .setPositiveButton("Delete", (d, w) -> {
-
-                if (file.delete()) {
-
-                    Toast.makeText(
-                        this,
-                        "File deleted",
-                        Toast.LENGTH_SHORT
-                    ).show();
-
-                    showFiles();
-
-                } else {
-
-                    Toast.makeText(
-                        this,
-                        "Delete failed",
-                        Toast.LENGTH_SHORT
-                    ).show();
-                }
-            })
-            .setNegativeButton("Cancel", null)
-            .show();
-    }
-
-    // Details
-    void showDetails(File file) {
-
-        String details =
-            "Name: " + file.getName() +
-            "\n\nSize: " + formatSize(file.length()) +
-            "\n\nLocation: " + file.getAbsolutePath() +
-            "\n\nModified: " +
-            formatDate(file.lastModified());
-
-        new AlertDialog.Builder(this)
-            .setTitle("File Details")
-            .setMessage(details)
-            .setPositiveButton("OK", null)
-            .show();
-    }
-
-    // File size
-    String formatSize(long bytes) {
-
-        if (bytes < 1024) {
-            return bytes + " B";
-        }
-
-        if (bytes < 1024 * 1024) {
-            return String.format(
-                Locale.US,
-                "%.1f KB",
-                bytes / 1024.0
-            );
-        }
-
-        if (bytes < 1024L * 1024L * 1024L) {
-            return String.format(
-                Locale.US,
-                "%.1f MB",
-                bytes / (1024.0 * 1024.0)
-            );
-        }
-
-        return String.format(
-            Locale.US,
-            "%.2f GB",
-            bytes / (1024.0 * 1024.0 * 1024.0)
-        );
-    }
-
-    // Date
-    String formatDate(long time) {
-
-        return new SimpleDateFormat(
-            "dd MMM yyyy",
-            Locale.getDefault()
-        ).format(new Date(time));
+    private String readableSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return String.format(java.util.Locale.US, "%.1f KB", bytes / 1024.0);
+        return String.format(java.util.Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0));
     }
 }
