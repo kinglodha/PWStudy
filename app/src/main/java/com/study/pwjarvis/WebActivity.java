@@ -131,14 +131,9 @@ public class WebActivity extends Activity {
                 input.close();
                 File saved = destination;
                 runOnUiThread(() -> {
-                    Toast.makeText(this, "Saved: " + saved.getName(), Toast.LENGTH_LONG).show();
-                    new AlertDialog.Builder(this)
-                            .setTitle("Download complete")
-                            .setMessage("Saved in Offline Library → " + folder)
-                            .setPositiveButton("Open Library", (dialog, which) ->
-                                    startActivity(new Intent(this, LibraryActivity.class)))
-                            .setNegativeButton("OK", null)
-                            .show();
+                    Toast.makeText(this,
+                            "Download complete: " + saved.getName() + " (Offline Library → " + folder + ")",
+                            Toast.LENGTH_LONG).show();
                 });
             } catch (Exception e) {
                 String message = e.getMessage() == null ? "Download failed" : e.getMessage();
