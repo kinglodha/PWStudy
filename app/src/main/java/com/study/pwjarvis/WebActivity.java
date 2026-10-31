@@ -60,6 +60,7 @@ public class WebActivity extends Activity {
                         + "if(t==='BACK'||t==='OFFLINE LIBRARY'){var p=n.parentElement;"
                         + "if(p&&p.children.length>=2){p.style.display='none';}else{n.style.display='none';}}});})();";
                 view.evaluateJavascript(script, null);
+                view.evaluateJavascript("(function(){var run=function(){var a=[].slice.call(document.querySelectorAll('button,a,[role=button]'));var hit=a.filter(function(n){var t=(n.innerText||n.textContent||'').trim().toUpperCase();return t==='BACK'||t==='OFFLINE LIBRARY';});hit.forEach(function(n){var p=n.parentElement;if(p&&p.children.length>1){var s=[].slice.call(p.children).map(function(x){return (x.innerText||x.textContent||'').trim().toUpperCase();});if(s.indexOf('BACK')>=0&&s.indexOf('OFFLINE LIBRARY')>=0){p.style.setProperty('display','none','important');return;}}n.style.setProperty('display','none','important');});};run();if(!window.pwHideObs){window.pwHideObs=new MutationObserver(run);window.pwHideObs.observe(document.documentElement,{childList:true,subtree:true});}})();", null);
             }
         });
         web.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) ->
