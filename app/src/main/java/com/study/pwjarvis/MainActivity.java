@@ -12,19 +12,15 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
-    private int dp(float value) {
-        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
-    }
+    private int dp(float value) { return (int)(value * getResources().getDisplayMetrics().density + 0.5f); }
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
+    @Override protected void onCreate(Bundle state) {
+        super.onCreate(state);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER);
-        root.setPadding(dp(24), dp(24), dp(24), dp(20));
-        root.setBackgroundColor(Color.rgb(12, 16, 25));
+        root.setPadding(dp(22), dp(24), dp(22), dp(24));
+        root.setBackgroundColor(Color.rgb(12,16,25));
 
         TextView title = new TextView(this);
         title.setText("PW JARVIS STUDY");
@@ -32,47 +28,52 @@ public class MainActivity extends Activity {
         title.setTextSize(25);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(-1, -2);
-        titleParams.bottomMargin = dp(34);
-        root.addView(title, titleParams);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1,-2);
+        tp.bottomMargin=dp(10);
+        root.addView(title,tp);
 
-        Button website = makeButton("WEBSITE\nOpen PW Website", true);
-        LinearLayout.LayoutParams websiteParams = new LinearLayout.LayoutParams(-1, dp(150));
-        root.addView(website, websiteParams);
-        website.setOnClickListener(v -> startActivity(new Intent(this, WebActivity.class)));
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Your study space");
+        subtitle.setTextColor(Color.LTGRAY);
+        subtitle.setTextSize(14);
+        subtitle.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1,-2);
+        sp.bottomMargin=dp(32);
+        root.addView(subtitle,sp);
 
-        TextView spacer = new TextView(this);
-        root.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1));
+        Button website=makeButton("1   PW WEBSITE","Open batches, classes and study content",true);
+        root.addView(website,buttonParams());
+        website.setOnClickListener(v->startActivity(new Intent(this,WebActivity.class)));
 
-        Button library = makeButton("OFFLINE LIBRARY  ↓", false);
-        LinearLayout.LayoutParams libraryParams = new LinearLayout.LayoutParams(-1, dp(58));
-        libraryParams.bottomMargin = dp(4);
-        root.addView(library, libraryParams);
-        library.setOnClickListener(v -> startActivity(new Intent(this, LibraryActivity.class)));
+        Button library=makeButton("2   OFFLINE LIBRARY","Files downloaded and saved inside this app",false);
+        LinearLayout.LayoutParams lp2=buttonParams(); lp2.topMargin=dp(16);
+        root.addView(library,lp2);
+        library.setOnClickListener(v->startActivity(new Intent(this,LibraryActivity.class)));
 
+        Button device=makeButton("3   DEVICE DOCUMENTS","Browse documents and folders on this phone",false);
+        LinearLayout.LayoutParams lp3=buttonParams(); lp3.topMargin=dp(16);
+        root.addView(device,lp3);
+        device.setOnClickListener(v->startActivity(new Intent(this,DeviceDocumentsActivity.class)));
         setContentView(root);
     }
 
-    private Button makeButton(String text, boolean filled) {
-        Button button = new Button(this);
-        button.setAllCaps(false);
-        button.setText(text);
-        button.setTextColor(Color.WHITE);
-        button.setTextSize(filled ? 18 : 15);
-        button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        button.setGravity(Gravity.CENTER);
-        GradientDrawable bg;
-        if (filled) {
-            bg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                    new int[]{Color.rgb(28, 93, 170), Color.rgb(22, 58, 112)});
-        } else {
-            bg = new GradientDrawable();
-            bg.setColor(Color.TRANSPARENT);
-        }
-        bg.setCornerRadius(dp(18));
-        bg.setStroke(dp(1), Color.rgb(90, 145, 205));
-        button.setBackground(bg);
-        button.setPadding(dp(12), dp(8), dp(12), dp(8));
-        return button;
+    private LinearLayout.LayoutParams buttonParams(){ return new LinearLayout.LayoutParams(-1,dp(82)); }
+
+    private Button makeButton(String title,String detail,boolean primary){
+        Button b=new Button(this);
+        b.setAllCaps(false);
+        b.setText(title+"\\n"+detail);
+        b.setTextColor(Color.WHITE);
+        b.setTextSize(14);
+        b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
+        b.setGravity(Gravity.CENTER);
+        GradientDrawable bg=new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            primary?new int[]{Color.rgb(28,93,170),Color.rgb(22,58,112)}:
+                    new int[]{Color.rgb(29,39,55),Color.rgb(20,28,42)});
+        bg.setCornerRadius(dp(16));
+        bg.setStroke(dp(1),Color.rgb(75,115,160));
+        b.setBackground(bg);
+        b.setPadding(dp(10),dp(6),dp(10),dp(6));
+        return b;
     }
 }
