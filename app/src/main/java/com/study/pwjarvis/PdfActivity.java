@@ -58,6 +58,7 @@ public class PdfActivity extends Activity {
         image.setBackgroundColor(Color.WHITE);
         image.setScaleType(ImageView.ScaleType.FIT_CENTER);
         image.setAdjustViewBounds(false);
+        image.setHapticFeedbackEnabled(false);
         root.addView(image, new FrameLayout.LayoutParams(-1, -1));
         controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
@@ -140,6 +141,7 @@ public class PdfActivity extends Activity {
         outline.setCornerRadius(dp(10));
         outline.setStroke(dp(1), Color.rgb(85, 130, 180));
         button.setBackground(outline);
+        button.setHapticFeedbackEnabled(false);
         button.setOnClickListener(listener);
         LinearLayout.LayoutParams params = weight == 1
                 ? new LinearLayout.LayoutParams(0, dp(42), 1)
@@ -165,7 +167,7 @@ public class PdfActivity extends Activity {
         fitWidth = true;
         zoom = 1f;
         if (image != null) {
-            image.setScaleType(ImageView.ScaleType.FIT_XY);
+            image.setScaleType(ImageView.ScaleType.FIT_CENTER);
             image.setScaleX(1f);
             image.setScaleY(1f);
         }
