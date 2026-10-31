@@ -15,6 +15,7 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.view.WindowManager;
 import android.graphics.drawable.GradientDrawable;
 import android.widget.Button;
 import android.widget.EditText;
@@ -35,6 +36,8 @@ public class PdfActivity extends Activity {
     private int rotation = 0;
     private int themeMode = 0;
     private float zoom = 1f;
+    private boolean fullscreen = false;
+    private boolean fitWidth = false;
     private ScaleGestureDetector scaleDetector;
     private GestureDetector gestureDetector;
     private int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density + 0.5f); }
@@ -50,10 +53,13 @@ public class PdfActivity extends Activity {
         LinearLayout tools = new LinearLayout(this);
         tools.setGravity(Gravity.CENTER);
         addTool(tools, "−", v -> setZoom(zoom / 1.25f), 0);
-        addTool(tools, "Fit", v -> setZoom(1f), 0);
+        addTool(tools, "100%", v -> setZoom(1f), 0);
         addTool(tools, "+", v -> setZoom(zoom * 1.25f), 0);
+        addTool(tools, "Fit Width", v -> setFitWidth(), 1);
+        addTool(tools, "Fit Page", v -> setFitPage(), 1);
         addTool(tools, "Rotate", v -> { rotation = (rotation + 90) % 360; renderPage(); }, 1);
         addTool(tools, "Go to", v -> showJumpDialog(), 1);
+        addTool(tools, "Full", v -> toggleFullscreen(), 0);
         root.addView(tools, new LinearLayout.LayoutParams(-1, dp(48)));
 
         image = new ImageView(this);
@@ -150,11 +156,39 @@ public class PdfActivity extends Activity {
     }
 
     private void setZoom(float value) {
-        zoom = Math.max(1f, Math.min(4f, value));
+        zoom = Math.max(0.5f, Math.min(4f, value));
+        fitWidth = false;
         if (image != null) {
+            image.setScaleType(ImageView.ScaleType.FIT_CENTER);
             image.setScaleX(zoom);
             image.setScaleY(zoom);
         }
+    }
+
+    private void setFitWidth() {
+        fitWidth = true;
+        zoom = 1f;
+        if (image != null) {
+            image.setScaleType(ImageView.ScaleType.FIT_XY);
+            image.setScaleX(1f);
+            image.setScaleY(1f);
+        }
+    }
+
+    private void setFitPage() {
+        fitWidth = false;
+        zoom = 1f;
+        if (image != null) {
+            image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            image.setScaleX(1f);
+            image.setScaleY(1f);
+        }
+    }
+
+    private void toggleFullscreen() {
+        fullscreen = !fullscreen;
+        if (fullscreen) getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
     }
 
     private void showJumpDialog() {
@@ -227,7 +261,7 @@ public class PdfActivity extends Activity {
                 bitmap = rotated;
             }
             image.setImageBitmap(bitmap);
-            setZoom(1f);
+            if (fitWidth) setFitWidth(); else setFitPage();
             pageLabel.setText((pageIndex + 1) + " / " + renderer.getPageCount());
         } catch (Exception e) {
             Toast.makeText(this, "Page render failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
