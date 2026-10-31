@@ -22,7 +22,7 @@ import android.widget.Toast;
 
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.multipdf.PDFMergerUtility;
-import org.apache.pdfbox.io.MemoryUsageSetting;
+import com.tom_roush.pdfbox.io.MemoryUsageSetting;
 
 import java.io.File;
 import java.io.FileInputStream;
