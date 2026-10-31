@@ -23,7 +23,7 @@ public class MainActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER);
-        root.setPadding(dp(24), dp(24), dp(24), dp(24));
+        root.setPadding(dp(24), dp(24), dp(24), dp(20));
         root.setBackgroundColor(Color.rgb(12, 16, 25));
 
         TextView title = new TextView(this);
@@ -36,43 +36,43 @@ public class MainActivity extends Activity {
         titleParams.bottomMargin = dp(34);
         root.addView(title, titleParams);
 
-        Button website = makeCardButton("WEBSITE", "Open PW Website");
-        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(-1, dp(150));
-        first.bottomMargin = dp(20);
-        root.addView(website, first);
+        Button website = makeButton("WEBSITE\nOpen PW Website", true);
+        LinearLayout.LayoutParams websiteParams = new LinearLayout.LayoutParams(-1, dp(150));
+        root.addView(website, websiteParams);
         website.setOnClickListener(v -> startActivity(new Intent(this, WebActivity.class)));
 
-        Button library = makeCardButton("DOWNLOAD DOCUMENTS\n& VIDEOS", "Offline Library");
-        root.addView(library, new LinearLayout.LayoutParams(-1, dp(150)));
-        library.setOnClickListener(v -> startActivity(new Intent(this, LibraryActivity.class)));
+        TextView spacer = new TextView(this);
+        root.addView(spacer, new LinearLayout.LayoutParams(1, 0, 1));
 
-        TextView footer = new TextView(this);
-        footer.setText("Your study space");
-        footer.setTextColor(Color.LTGRAY);
-        footer.setTextSize(12);
-        footer.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams footerParams = new LinearLayout.LayoutParams(-1, -2);
-        footerParams.topMargin = dp(28);
-        root.addView(footer, footerParams);
+        Button library = makeButton("OFFLINE LIBRARY  ↓", false);
+        LinearLayout.LayoutParams libraryParams = new LinearLayout.LayoutParams(-1, dp(58));
+        libraryParams.bottomMargin = dp(4);
+        root.addView(library, libraryParams);
+        library.setOnClickListener(v -> startActivity(new Intent(this, LibraryActivity.class)));
 
         setContentView(root);
     }
 
-    private Button makeCardButton(String heading, String subtitle) {
+    private Button makeButton(String text, boolean filled) {
         Button button = new Button(this);
         button.setAllCaps(false);
-        button.setText(heading + "\n" + subtitle);
+        button.setText(text);
         button.setTextColor(Color.WHITE);
-        button.setTextSize(18);
+        button.setTextSize(filled ? 18 : 15);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         button.setGravity(Gravity.CENTER);
-        GradientDrawable bg = new GradientDrawable(
-                GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{Color.rgb(28, 93, 170), Color.rgb(22, 58, 112)});
-        bg.setCornerRadius(dp(20));
-        bg.setStroke(dp(1), Color.rgb(65, 125, 205));
+        GradientDrawable bg;
+        if (filled) {
+            bg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                    new int[]{Color.rgb(28, 93, 170), Color.rgb(22, 58, 112)});
+        } else {
+            bg = new GradientDrawable();
+            bg.setColor(Color.TRANSPARENT);
+        }
+        bg.setCornerRadius(dp(18));
+        bg.setStroke(dp(1), Color.rgb(90, 145, 205));
         button.setBackground(bg);
-        button.setPadding(dp(12), dp(12), dp(12), dp(12));
+        button.setPadding(dp(12), dp(8), dp(12), dp(8));
         return button;
     }
 }
