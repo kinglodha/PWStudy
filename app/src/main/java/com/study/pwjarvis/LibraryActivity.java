@@ -43,7 +43,7 @@ public class LibraryActivity extends Activity {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12), dp(8), dp(12), dp(8));
-        root.setBackgroundColor(Color.rgb(12, 16, 25));
+        root.setBackgroundColor(Color.BLACK);
 
         TextView title = new TextView(this);
         title.setText("OFFLINE LIBRARY");
@@ -93,7 +93,24 @@ public class LibraryActivity extends Activity {
                     "  •  " + DateFormat.getDateInstance().format(new Date(f.lastModified())));
         }
         if (labels.isEmpty()) labels.add("No downloaded files yet.\nOpen Website and download a document or video.");
-        list.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, labels));
+        list.setAdapter(new ArrayAdapter<String>(
+                this, android.R.layout.simple_list_item_2, android.R.id.text1, labels
+        ) {
+            @Override
+            public android.view.View getView(int position, android.view.View convertView,
+                                             android.view.ViewGroup parent) {
+                android.view.View row = super.getView(position, convertView, parent);
+                TextView name = row.findViewById(android.R.id.text1);
+                TextView details = row.findViewById(android.R.id.text2);
+                String[] parts = getItem(position).split("\\n", 2);
+                name.setText(parts[0]);
+                name.setTextColor(Color.WHITE);
+                details.setText(parts.length > 1 ? parts[1] : "");
+                details.setTextColor(Color.GRAY);
+                row.setBackgroundColor(Color.BLACK);
+                return row;
+            }
+        });
     }
 
     private void collect(File folder) {
