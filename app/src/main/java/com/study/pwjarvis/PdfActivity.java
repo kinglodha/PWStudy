@@ -15,6 +15,9 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.FrameLayout;
 import android.view.WindowManager;
 import android.graphics.drawable.GradientDrawable;
 import android.widget.Button;
@@ -38,6 +41,10 @@ public class PdfActivity extends Activity {
     private float zoom = 1f;
     private boolean fullscreen = false;
     private boolean fitWidth = false;
+    private LinearLayout controls;
+    private final Handler controlHandler = new Handler(Looper.getMainLooper());
+    private boolean controlsVisible = true;
+    private final Runnable hideControlsTask = () -> setControlsVisible(false);
     private ScaleGestureDetector scaleDetector;
     private GestureDetector gestureDetector;
     private int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density + 0.5f); }
@@ -45,55 +52,40 @@ public class PdfActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(6), dp(6), dp(6), dp(6));
+        FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.rgb(12, 16, 25));
-
-        LinearLayout tools = new LinearLayout(this);
-        tools.setGravity(Gravity.CENTER);
+        image = new ImageView(this);
+        image.setBackgroundColor(Color.WHITE);
+        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setAdjustViewBounds(false);
+        root.addView(image, new FrameLayout.LayoutParams(-1, -1));
+        controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.VERTICAL);
+        controls.setPadding(dp(5), dp(5), dp(5), dp(5));
+        controls.setBackgroundColor(Color.argb(225, 10, 13, 20));
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+        root.addView(controls, cp);
+        LinearLayout tools = new LinearLayout(this); tools.setGravity(Gravity.CENTER);
         addTool(tools, "−", v -> setZoom(zoom / 1.25f), 0);
         addTool(tools, "100%", v -> setZoom(1f), 0);
         addTool(tools, "+", v -> setZoom(zoom * 1.25f), 0);
         addTool(tools, "Fit Width", v -> setFitWidth(), 1);
         addTool(tools, "Fit Page", v -> setFitPage(), 1);
-        addTool(tools, "Rotate", v -> { rotation = (rotation + 90) % 360; renderPage(); }, 1);
-        addTool(tools, "Go to", v -> showJumpDialog(), 1);
-        addTool(tools, "Full", v -> toggleFullscreen(), 0);
-        root.addView(tools, new LinearLayout.LayoutParams(-1, dp(48)));
-
-        image = new ImageView(this);
-        image.setBackgroundColor(Color.WHITE);
-        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        image.setAdjustViewBounds(false);
-        LinearLayout.LayoutParams imageParams = new LinearLayout.LayoutParams(-1, 0, 1);
-        imageParams.topMargin = dp(5);
-        imageParams.bottomMargin = dp(5);
-        root.addView(image, imageParams);
-
-        LinearLayout navigation = new LinearLayout(this);
-        navigation.setGravity(Gravity.CENTER);
+        controls.addView(tools, new LinearLayout.LayoutParams(-1, dp(44)));
+        LinearLayout row2 = new LinearLayout(this); row2.setGravity(Gravity.CENTER);
+        addTool(row2, "Rotate", v -> { rotation = (rotation + 90) % 360; renderPage(); }, 1);
+        addTool(row2, "Go to", v -> showJumpDialog(), 1);
+        addTool(row2, "Full", v -> toggleFullscreen(), 1);
+        addTool(row2, "Theme", v -> cycleTheme(), 1);
+        controls.addView(row2, new LinearLayout.LayoutParams(-1, dp(44)));
+        LinearLayout navigation = new LinearLayout(this); navigation.setGravity(Gravity.CENTER);
         addTool(navigation, "Previous", v -> showPage(pageIndex - 1), 1);
-        pageLabel = new TextView(this);
-        pageLabel.setTextColor(Color.WHITE);
-        pageLabel.setGravity(Gravity.CENTER);
-        pageLabel.setTextSize(14);
-        navigation.addView(pageLabel, new LinearLayout.LayoutParams(0, dp(48), 1));
+        pageLabel = new TextView(this); pageLabel.setTextColor(Color.WHITE);
+        pageLabel.setGravity(Gravity.CENTER); pageLabel.setTextSize(14);
+        navigation.addView(pageLabel, new LinearLayout.LayoutParams(0, dp(42), 1));
         addTool(navigation, "Next", v -> showPage(pageIndex + 1), 1);
-        root.addView(navigation, new LinearLayout.LayoutParams(-1, dp(48)));
-
-        LinearLayout bottom = new LinearLayout(this);
-        bottom.setGravity(Gravity.CENTER);
-        addTool(bottom, "Theme", v -> cycleTheme(), 0);
-        TextView swipeHint = new TextView(this);
-        swipeHint.setText("Swipe left/right to change page");
-        swipeHint.setTextColor(Color.LTGRAY);
-        swipeHint.setTextSize(11);
-        swipeHint.setGravity(Gravity.CENTER);
-        bottom.addView(swipeHint, new LinearLayout.LayoutParams(0, dp(34), 1));
-        root.addView(bottom, new LinearLayout.LayoutParams(-1, dp(34)));
-        setContentView(root);
-
+        controls.addView(navigation, new LinearLayout.LayoutParams(-1, dp(44)));
+        setContentView(root); scheduleControlsHide();
         scaleDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override public boolean onScale(ScaleGestureDetector detector) {
                 setZoom(zoom * detector.getScaleFactor());
@@ -102,6 +94,7 @@ public class PdfActivity extends Activity {
         });
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override public boolean onDown(MotionEvent e) { return true; }
+            @Override public boolean onSingleTapUp(MotionEvent e) { setControlsVisible(true); scheduleControlsHide(); return true; }
             @Override public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
                 float dx = e2.getX() - e1.getX();
                 float dy = e2.getY() - e1.getY();
@@ -154,6 +147,9 @@ public class PdfActivity extends Activity {
         params.setMargins(dp(2), 0, dp(2), 0);
         parent.addView(button, params);
     }
+
+    private void scheduleControlsHide() { controlHandler.removeCallbacks(hideControlsTask); controlHandler.postDelayed(hideControlsTask, 4000); }
+    private void setControlsVisible(boolean visible) { controlsVisible = visible; if (controls != null) controls.setVisibility(visible ? View.VISIBLE : View.GONE); }
 
     private void setZoom(float value) {
         zoom = Math.max(0.5f, Math.min(4f, value));
@@ -269,6 +265,7 @@ public class PdfActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        controlHandler.removeCallbacks(hideControlsTask);
         try { if (page != null) page.close(); } catch (Exception ignored) {}
         try { if (renderer != null) renderer.close(); } catch (Exception ignored) {}
         try { if (descriptor != null) descriptor.close(); } catch (Exception ignored) {}
