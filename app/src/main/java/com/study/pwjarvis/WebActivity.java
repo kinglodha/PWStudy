@@ -12,7 +12,6 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 
@@ -42,21 +41,6 @@ public class WebActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.rgb(12, 16, 25));
 
-        LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        Button back = new Button(this);
-        back.setText("Back");
-        back.setOnClickListener(v -> {
-            if (web != null && web.canGoBack()) web.goBack();
-            else finish();
-        });
-        Button library = new Button(this);
-        library.setText("Offline Library");
-        library.setOnClickListener(v -> startActivity(new Intent(this, LibraryActivity.class)));
-        bar.addView(back, new LinearLayout.LayoutParams(0, dp(48), 1));
-        bar.addView(library, new LinearLayout.LayoutParams(0, dp(48), 1));
-        root.addView(bar);
-
         web = new WebView(this);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -67,7 +51,17 @@ public class WebActivity extends Activity {
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
         web.setWebChromeClient(new WebChromeClient());
-        web.setWebViewClient(new WebViewClient());
+        web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                String script = "(function(){var nodes=[].slice.call(document.querySelectorAll('button,a,[role=button]'));"
+                        + "nodes.forEach(function(n){var t=(n.innerText||n.textContent||'').trim().toUpperCase();"
+                        + "if(t==='BACK'||t==='OFFLINE LIBRARY'){var p=n.parentElement;"
+                        + "if(p&&p.children.length>=2){p.style.display='none';}else{n.style.display='none';}}});})();";
+                view.evaluateJavascript(script, null);
+            }
+        });
         web.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) ->
                 askDownload(url, userAgent, contentDisposition, mimeType));
         root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
