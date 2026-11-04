@@ -2,12 +2,21 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main", "pwstudy-v1" ]
+    branches: [ "main", "pwstudy-v1", "pwstudy-v2" ]
   workflow_dispatch:
+
+# Keep only the newest build for this branch; avoid wasting runner time.
+concurrency:
+  group: pwstudy-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -22,16 +31,19 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
+      # Gradle User Home caching is handled by setup-gradle.
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
       - name: Build debug APK
-        run: gradle assembleDebug
+        run: gradle assembleDebug --build-cache --parallel --console=plain
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: PWStudy-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
