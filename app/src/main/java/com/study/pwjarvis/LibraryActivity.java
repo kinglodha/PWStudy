@@ -75,7 +75,7 @@ public class LibraryActivity extends Activity {
         title.setTextSize(20);
         title.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(54), 1));
-        Button sort = new Button(this);
+        Button customize = new Button(this);\n        customize.setText("Style"); customize.setAllCaps(false);\n        customize.setOnClickListener(v -> startActivity(new Intent(this, CustomizationActivity.class)));\n        header.addView(customize, new LinearLayout.LayoutParams(dp(76), dp(48)));\n        Button sort = new Button(this);
         sort.setText("Sort");
         sort.setOnClickListener(v -> {
             newestFirst = !newestFirst;
@@ -172,10 +172,10 @@ public class LibraryActivity extends Activity {
                 TextView details = row.findViewById(android.R.id.text2);
                 String[] parts = getItem(position).split("\\n", 2);
                 name.setText(parts[0]);
-                name.setTextColor(Color.WHITE);
+                name.setTextColor(AppAppearance.textColor(LibraryActivity.this));
                 details.setText(parts.length > 1 ? parts[1] : "");
-                details.setTextColor(Color.LTGRAY);
-                row.setBackgroundColor(Color.rgb(12, 16, 25));
+                details.setTextColor(AppAppearance.textColor(LibraryActivity.this));
+                row.setBackgroundColor(Color.TRANSPARENT);
                 return row;
             }
         });
