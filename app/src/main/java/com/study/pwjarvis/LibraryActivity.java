@@ -75,7 +75,9 @@ public class LibraryActivity extends Activity {
         title.setTextSize(20);
         title.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
         header.addView(title, new LinearLayout.LayoutParams(0, dp(54), 1));
-        Button customize = new Button(this);\n        customize.setText("Style"); customize.setAllCaps(false);\n        customize.setOnClickListener(v -> startActivity(new Intent(this, CustomizationActivity.class)));\n        header.addView(customize, new LinearLayout.LayoutParams(dp(76), dp(48)));\n        Button sort = new Button(this);
+        Button customize = new Button(this);
+        customize.setText("Style"); customize.setAllCaps(false);
+        customize.setOnClickListener(v -> startActivity(new Intent(this, CustomizationActivity.class)));\n        header.addView(customize, new LinearLayout.LayoutParams(dp(76), dp(48)));\n        Button sort = new Button(this);
         sort.setText("Sort");
         sort.setOnClickListener(v -> {
             newestFirst = !newestFirst;
