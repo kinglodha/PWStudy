@@ -48,7 +48,9 @@ public class DeviceDocumentsActivity extends Activity {
         title.setTextSize(19); title.setTypeface(null,1);
         top.addView(title,new LinearLayout.LayoutParams(0,dp(48),1));
         Button customize=new Button(this); customize.setText("Style"); customize.setAllCaps(false);
-        customize.setOnClickListener(v->startActivity(new Intent(this,CustomizationActivity.class)));\n        top.addView(customize,new LinearLayout.LayoutParams(-2,dp(44)));\n        Button choose=new Button(this); choose.setText("Choose folder"); choose.setAllCaps(false);
+        customize.setOnClickListener(v->startActivity(new Intent(this,CustomizationActivity.class)));
+        top.addView(customize,new LinearLayout.LayoutParams(-2,dp(44)));
+        Button choose=new Button(this); choose.setText("Choose folder"); choose.setAllCaps(false);
         top.addView(choose,new LinearLayout.LayoutParams(-2,dp(46)));
         choose.setOnClickListener(v->pickFolder());
         root.addView(top);
@@ -78,7 +80,9 @@ public class DeviceDocumentsActivity extends Activity {
         list=new ListView(this);
         adapter=new ArrayAdapter<String>(this,android.R.layout.simple_list_item_1,labels){
             @Override public android.view.View getView(int position,android.view.View convertView,android.view.ViewGroup parent){
-                android.view.View row=super.getView(position,convertView,parent);\n                ((TextView)row.findViewById(android.R.id.text1)).setTextColor(AppAppearance.textColor(DeviceDocumentsActivity.this));\n                row.setBackgroundColor(Color.TRANSPARENT); return row;
+                android.view.View row=super.getView(position,convertView,parent);
+                ((TextView)row.findViewById(android.R.id.text1)).setTextColor(AppAppearance.textColor(DeviceDocumentsActivity.this));
+                row.setBackgroundColor(Color.TRANSPARENT); return row;
             }
         };
         list.setAdapter(adapter);
@@ -98,7 +102,8 @@ public class DeviceDocumentsActivity extends Activity {
         super.onResume();
         android.view.ViewGroup content=findViewById(android.R.id.content);
         if(content.getChildCount()>0)AppAppearance.apply(this,content.getChildAt(0));
-    }\n
+    }
+
     private void pickFolder(){
         Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
