@@ -20,7 +20,7 @@ public class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setGravity(Gravity.CENTER);
         root.setPadding(dp(22), dp(24), dp(22), dp(24));
-        root.setBackgroundColor(Color.rgb(12,16,25));
+        root.setBackgroundColor(Color.rgb(5,7,12));
 
         TextView title = new TextView(this);
         title.setText("PW JARVIS STUDY");
@@ -38,7 +38,7 @@ public class MainActivity extends Activity {
         subtitle.setTextSize(14);
         subtitle.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1,-2);
-        sp.bottomMargin=dp(32);
+        sp.bottomMargin=dp(25);
         root.addView(subtitle,sp);
 
         Button website=makeButton("1   PW WEBSITE","Open batches, classes and study content",true);
@@ -54,7 +54,15 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams lp3=buttonParams(); lp3.topMargin=dp(16);
         root.addView(device,lp3);
         device.setOnClickListener(v->startActivity(new Intent(this,DeviceDocumentsActivity.class)));
+
+        Button customize=new Button(this);
+        customize.setText("CUSTOMIZE APP"); customize.setAllCaps(false);
+        customize.setTextColor(Color.WHITE);
+        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,dp(52)); cp.topMargin=dp(24);
+        root.addView(customize,cp);
+        customize.setOnClickListener(v->startActivity(new Intent(this,CustomizationActivity.class)));
         setContentView(root);
+        AppAppearance.apply(this,root);
     }
 
     private LinearLayout.LayoutParams buttonParams(){ return new LinearLayout.LayoutParams(-1,dp(82)); }
@@ -62,7 +70,7 @@ public class MainActivity extends Activity {
     private Button makeButton(String title,String detail,boolean primary){
         Button b=new Button(this);
         b.setAllCaps(false);
-        b.setText(title+"\\n"+detail);
+        b.setText(title+"\n"+detail);
         b.setTextColor(Color.WHITE);
         b.setTextSize(14);
         b.setTypeface(Typeface.DEFAULT,Typeface.BOLD);
