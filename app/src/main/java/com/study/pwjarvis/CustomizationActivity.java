@@ -45,7 +45,7 @@ public class CustomizationActivity extends Activity {
     }
     private void addSection(String text){TextView t=new TextView(this);t.setText(text);t.setTextColor(0xFF80B8FF);t.setTextSize(13);t.setTypeface(null,Typeface.BOLD);t.setPadding(0,dp(18),0,dp(7));root.addView(t);}
     private void addPalette(String[] names,int[] colors,boolean text){
-        for(int i=0;i<names.length;i++){final int color=colors[i];addButton(names[i],v->{if(text)AppAppearance.setTextColor(this,color);else AppAppearance.setAccentColor(this,color);Toast.makeText(this,names[i]+" applied when screens reopen",Toast.LENGTH_SHORT).show();});}
+        for(int i=0;i<names.length;i++){final int color=colors[i];final String name=names[i];addButton(name,v->{if(text)AppAppearance.setTextColor(this,color);else AppAppearance.setAccentColor(this,color);Toast.makeText(this,name+" applied when screens reopen",Toast.LENGTH_SHORT).show();});}
     }
     private void addButton(String label,android.view.View.OnClickListener listener){
         Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextColor(Color.WHITE);
