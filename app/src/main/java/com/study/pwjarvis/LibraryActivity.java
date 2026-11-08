@@ -136,7 +136,17 @@ public class LibraryActivity extends Activity {
         setContentView(root);
     }
 
-    @Override protected void onResume() { super.onResume(); refresh(); }
+    @Override protected void onResume() {
+        super.onResume();
+        refresh();
+        // Re-apply saved text, accent and background preferences after returning
+        // from the customization screen.
+        View content = findViewById(android.R.id.content);
+        if (content instanceof android.view.ViewGroup
+                && ((android.view.ViewGroup) content).getChildCount() > 0) {
+            AppAppearance.apply(this, ((android.view.ViewGroup) content).getChildAt(0));
+        }
+    }
 
     private void refresh() {
         if (list == null || filter == null) return;
