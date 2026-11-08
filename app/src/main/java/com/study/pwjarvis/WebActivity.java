@@ -68,7 +68,7 @@ public class WebActivity extends Activity {
         root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
         setContentView(root);
 
-        if (state == null) web.loadUrl("https://www.pwjarvis.com/study/batches");
+        if (state == null) web.loadUrl("https://www.pwjarvis.com/study/auth");
         else web.restoreState(state);
     }
 
