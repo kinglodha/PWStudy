@@ -63,7 +63,7 @@ public class LibraryActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(12), dp(8), dp(12), dp(8));
+        root.setPadding(dp(12), dp(48), dp(12), dp(8));
         root.setBackgroundColor(Color.rgb(12, 16, 25));
 
         LinearLayout header = new LinearLayout(this);
