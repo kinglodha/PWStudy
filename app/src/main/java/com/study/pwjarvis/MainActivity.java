@@ -56,18 +56,8 @@ public class MainActivity extends Activity {
 
         Button loading = makeButton("LOADING NAME", "Your NEET study channels", true);
         root.addView(loading, buttonParams(dp(76)));
-        loading.setOnClickListener(v -> {
-            Toast.makeText(this, "Select a Telegram channel below.", Toast.LENGTH_SHORT).show();
-        });
-
-        addSectionTitle(root, "TELEGRAM CHANNELS", "Open your subject-wise study channels");
-        addChannel(root, "1. YAKEEN 2.0 ALPHA", "https://t.me/yakeen_2_aplha_2027");
-        addChannel(root, "2. PHYSICS", "https://t.me/+1Us9I5v80jNjNDQ1");
-        addChannel(root, "3. PHYSICAL CHEMISTRY", "https://t.me/+jPzDsZLxVUZmMGVl");
-        addChannel(root, "4. INORGANIC CHEMISTRY", "https://t.me/+lVhOzKTDSs84MGJl");
-        addChannel(root, "5. BOTANY", "https://t.me/+_MYNwUQF1n43YjRl");
-        addChannel(root, "6. ZOOLOGY", "https://t.me/+aLgCob6m9bhlYjU1");
-        addChannel(root, "7. ORGANIC CHEMISTRY", "https://t.me/+zrVWpo5mY5FmNDU1");
+        loading.setOnClickListener(v ->
+                startActivity(new Intent(this, TelegramViewerActivity.class)));
 
         addSectionTitle(root, "STUDY TOOLS", "Your saved files and app features");
         Button library = makeButton("OFFLINE LIBRARY",
