@@ -43,19 +43,32 @@ public class DeviceDocumentsActivity extends Activity {
         root.setPadding(dp(12),dp(8),dp(12),dp(8));
         root.setBackgroundColor(Color.rgb(12,16,25));
 
-        LinearLayout top=new LinearLayout(this);
-        top.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=new TextView(this);
-        title.setText("DEVICE DOCUMENTS"); title.setTextColor(Color.WHITE);
-        title.setTextSize(19); title.setTypeface(null,1);
-        top.addView(title,new LinearLayout.LayoutParams(0,dp(48),1));
-        Button customize=new Button(this); customize.setText("Style"); customize.setAllCaps(false);
+        title.setText("DEVICE DOCUMENTS");
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(19);
+        title.setTypeface(null,1);
+        title.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(title,new LinearLayout.LayoutParams(-1,dp(44)));
+
+        LinearLayout topActions=new LinearLayout(this);
+        topActions.setOrientation(LinearLayout.HORIZONTAL);
+        topActions.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
+        Button customize=new Button(this);
+        customize.setText("Style");
+        customize.setAllCaps(false);
         customize.setOnClickListener(v->startActivity(new Intent(this,CustomizationActivity.class)));
-        top.addView(customize,new LinearLayout.LayoutParams(-2,dp(44)));
-        Button choose=new Button(this); choose.setText("Choose folder"); choose.setAllCaps(false);
-        top.addView(choose,new LinearLayout.LayoutParams(-2,dp(46)));
+        topActions.addView(customize,new LinearLayout.LayoutParams(0,dp(46),1));
+        Button choose=new Button(this);
+        choose.setText("Choose folder");
+        choose.setAllCaps(false);
+        LinearLayout.LayoutParams chooseParams=new LinearLayout.LayoutParams(0,dp(46),1);
+        chooseParams.leftMargin=dp(8);
+        topActions.addView(choose,chooseParams);
         choose.setOnClickListener(v->pickFolder());
-        root.addView(top);
+        LinearLayout.LayoutParams topActionsParams=new LinearLayout.LayoutParams(-1,dp(50));
+        topActionsParams.bottomMargin=dp(4);
+        root.addView(topActions,topActionsParams);
 
         location=new TextView(this); location.setTextColor(Color.LTGRAY);
         location.setPadding(dp(4),dp(8),dp(4),dp(8)); root.addView(location);
