@@ -1,6 +1,7 @@
 package com.study.pwjarvis;
 
 import android.app.Activity;
+import androidx.core.view.WindowCompat;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -22,6 +23,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
