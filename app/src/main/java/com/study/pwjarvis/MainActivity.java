@@ -50,9 +50,14 @@ public class MainActivity extends Activity {
         root.addView(library,lp2);
         library.setOnClickListener(v->startActivity(new Intent(this,LibraryActivity.class)));
 
-        Button device=makeButton("3   DEVICE DOCUMENTS","Browse documents and folders on this phone",false);
+        Button telegram=makeButton("3   TELEGRAM VIEWER","Filter channel videos by teacher and subject",false);
         LinearLayout.LayoutParams lp3=buttonParams(); lp3.topMargin=dp(16);
-        root.addView(device,lp3);
+        root.addView(telegram,lp3);
+        telegram.setOnClickListener(v->startActivity(new Intent(this,TelegramViewerActivity.class)));
+
+        Button device=makeButton("4   DEVICE DOCUMENTS","Browse documents and folders on this phone",false);
+        LinearLayout.LayoutParams lp4=buttonParams(); lp4.topMargin=dp(16);
+        root.addView(device,lp4);
         device.setOnClickListener(v->startActivity(new Intent(this,DeviceDocumentsActivity.class)));
 
         Button customize=new Button(this);

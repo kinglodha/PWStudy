@@ -18,6 +18,7 @@
         </provider>
         <activity android:name=".CustomizationActivity" android:exported="false" />
         <activity android:name=".DeviceDocumentsActivity" android:exported="false" />
+        <activity android:name=".TelegramViewerActivity" android:exported="false" />
         <activity android:name=".PdfActivity" android:exported="false" />
         <activity android:name=".PlayerActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:exported="false" />
         <activity android:name=".LibraryActivity" android:exported="false" />
