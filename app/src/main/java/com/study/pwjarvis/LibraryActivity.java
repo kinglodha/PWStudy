@@ -68,29 +68,35 @@ public class LibraryActivity extends Activity {
         root.setPadding(dp(12), dp(8), dp(12), dp(8));
         root.setBackgroundColor(Color.rgb(12, 16, 25));
 
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.HORIZONTAL);
-        header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title = new TextView(this);
         title.setText("OFFLINE LIBRARY");
         title.setTextColor(Color.WHITE);
         title.setTextSize(20);
         title.setGravity(Gravity.CENTER_VERTICAL | Gravity.LEFT);
-        header.addView(title, new LinearLayout.LayoutParams(0, dp(54), 1));
+        root.addView(title, new LinearLayout.LayoutParams(-1, dp(46)));
+
+        LinearLayout headerActions = new LinearLayout(this);
+        headerActions.setOrientation(LinearLayout.HORIZONTAL);
+        headerActions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         Button customize = new Button(this);
-        customize.setText("Style"); customize.setAllCaps(false);
+        customize.setText("Style");
+        customize.setAllCaps(false);
         customize.setOnClickListener(v -> startActivity(new Intent(this, CustomizationActivity.class)));
-        header.addView(customize, new LinearLayout.LayoutParams(dp(76), dp(48)));
+        headerActions.addView(customize, new LinearLayout.LayoutParams(dp(104), dp(46)));
         Button sort = new Button(this);
-        sort.setText("Sort");
+        sort.setText("Newest");
+        sort.setAllCaps(false);
         sort.setOnClickListener(v -> {
             newestFirst = !newestFirst;
             sort.setText(newestFirst ? "Newest" : "Oldest");
             refresh();
         });
-        sort.setText("Newest");
-        header.addView(sort, new LinearLayout.LayoutParams(dp(82), dp(48)));
-        root.addView(header);
+        LinearLayout.LayoutParams sortParams = new LinearLayout.LayoutParams(dp(112), dp(46));
+        sortParams.leftMargin = dp(8);
+        headerActions.addView(sort, sortParams);
+        LinearLayout.LayoutParams headerActionsParams = new LinearLayout.LayoutParams(-1, dp(50));
+        headerActionsParams.bottomMargin = dp(6);
+        root.addView(headerActions, headerActionsParams);
 
         search = new EditText(this);
         search.setSingleLine(true);
