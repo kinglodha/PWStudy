@@ -1,6 +1,7 @@
 package com.study.pwjarvis;
 
 import android.annotation.SuppressLint;
+import androidx.core.view.WindowCompat;
 import android.app.Activity;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -85,6 +86,7 @@ public class TelegramViewerActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
         setTitle("Telegram Study Viewer");
 
         LinearLayout root = new LinearLayout(this);
