@@ -152,7 +152,7 @@ public class MainActivity extends Activity {
     private Button makeButton(String title, String detail, boolean primary) {
         Button button = new Button(this);
         button.setAllCaps(false);
-        button.setText(title + "\\n" + detail);
+        button.setText(title + "\n" + detail);
         button.setTextColor(Color.WHITE);
         button.setTextSize(14);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
