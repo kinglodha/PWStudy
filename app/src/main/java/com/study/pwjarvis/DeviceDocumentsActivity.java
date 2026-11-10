@@ -1,6 +1,7 @@
 package com.study.pwjarvis;
 
 import android.app.Activity;
+import androidx.core.view.WindowCompat;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
@@ -36,6 +37,7 @@ public class DeviceDocumentsActivity extends Activity {
 
     @Override protected void onCreate(Bundle state){
         super.onCreate(state);
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
         LinearLayout root=new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(12),dp(8),dp(12),dp(8));
