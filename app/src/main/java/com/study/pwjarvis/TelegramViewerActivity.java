@@ -17,7 +17,6 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import java.util.Locale;
 
@@ -50,6 +49,7 @@ public class TelegramViewerActivity extends Activity {
     private WebView web;
     private TextView status;
     private LinearLayout channelPanel;
+    private ScrollView channelScroll;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -90,10 +90,10 @@ public class TelegramViewerActivity extends Activity {
 
         channelPanel = new LinearLayout(this);
         channelPanel.setOrientation(LinearLayout.VERTICAL);
-        ScrollView channelScroll = new ScrollView(this);
+        channelScroll = new ScrollView(this);
         channelScroll.setFillViewport(false);
         channelScroll.addView(channelPanel);
-        root.addView(channelScroll, new LinearLayout.LayoutParams(-1, dp(0), 1));
+        root.addView(channelScroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
         web = new WebView(this);
         web.setBackgroundColor(BG);
@@ -170,7 +170,7 @@ public class TelegramViewerActivity extends Activity {
     }
 
     private void openChannel(StudyChannel channel) {
-        channelPanel.setVisibility(View.GONE);
+        channelScroll.setVisibility(View.GONE);
         web.setVisibility(View.VISIBLE);
         status.setText("Opening " + channel.name + " inside PWStudy…");
         web.loadUrl(channel.url);
@@ -181,7 +181,7 @@ public class TelegramViewerActivity extends Activity {
             web.stopLoading();
             web.setVisibility(View.GONE);
         }
-        channelPanel.setVisibility(View.VISIBLE);
+        channelScroll.setVisibility(View.VISIBLE);
         status.setText("Choose one of the configured study channels.");
     }
 
@@ -191,8 +191,8 @@ public class TelegramViewerActivity extends Activity {
         if (host == null) return false;
         host = host.toLowerCase(Locale.ROOT);
         return host.equals("t.me") || host.endsWith(".t.me")
-                || host.equals("web.telegram.org") || host.equals("telegram.org")
-                || host.endsWith(".telegram.org");
+                || host.equals("web.telegram.org") || host.equals("telegram.me")
+                || host.equals("telegram.org") || host.endsWith(".telegram.org");
     }
 
     @Override
