@@ -6,14 +6,12 @@ import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
 public class MainActivity extends Activity {
     private int dp(float value) {
@@ -54,23 +52,18 @@ public class MainActivity extends Activity {
         subtitleParams.bottomMargin = dp(22);
         root.addView(subtitle, subtitleParams);
 
-        Button loading = makeButton("LOADING NAME", "Your NEET study channels", true);
+        Button loading = makeButton("LOADING", "Open teacher-wise Telegram study channels", true);
         root.addView(loading, buttonParams(dp(76)));
         loading.setOnClickListener(v ->
                 startActivity(new Intent(this, TelegramViewerActivity.class)));
 
         addSectionTitle(root, "STUDY TOOLS", "Your saved files and app features");
+
         Button library = makeButton("OFFLINE LIBRARY",
                 "Files downloaded and saved inside this app", false);
         root.addView(library, spacedButtonParams());
         library.setOnClickListener(v ->
                 startActivity(new Intent(this, LibraryActivity.class)));
-
-        Button telegramViewer = makeButton("TELEGRAM VIEWER",
-                "Filter channel videos by teacher and subject", false);
-        root.addView(telegramViewer, spacedButtonParams());
-        telegramViewer.setOnClickListener(v ->
-                startActivity(new Intent(this, TelegramViewerActivity.class)));
 
         Button device = makeButton("DEVICE DOCUMENTS",
                 "Browse documents and folders on this phone", false);
@@ -110,27 +103,6 @@ public class MainActivity extends Activity {
         root.addView(subtitle, detailParams);
     }
 
-    private void addChannel(LinearLayout root, String name, String url) {
-        Button channel = makeButton(name, "OPEN TELEGRAM CHANNEL  ↗", false);
-        LinearLayout.LayoutParams params = buttonParams(dp(72));
-        params.topMargin = dp(9);
-        root.addView(channel, params);
-        channel.setOnClickListener(v -> {
-            try {
-                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                intent.setPackage("org.telegram.messenger");
-                startActivity(intent);
-            } catch (Exception telegramMissing) {
-                try {
-                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-                } catch (Exception noHandler) {
-                    Toast.makeText(this, "No app found to open this Telegram link.",
-                            Toast.LENGTH_LONG).show();
-                }
-            }
-        });
-    }
-
     private LinearLayout.LayoutParams buttonParams(int height) {
         return new LinearLayout.LayoutParams(-1, height);
     }
@@ -144,7 +116,7 @@ public class MainActivity extends Activity {
     private Button makeButton(String title, String detail, boolean primary) {
         Button button = new Button(this);
         button.setAllCaps(false);
-        button.setText(title + "\n" + detail);
+        button.setText(title + "\\n" + detail);
         button.setTextColor(Color.WHITE);
         button.setTextSize(14);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
