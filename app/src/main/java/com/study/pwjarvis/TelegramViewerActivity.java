@@ -1,7 +1,6 @@
 package com.study.pwjarvis;
 
 import android.annotation.SuppressLint;
-import androidx.core.view.WindowCompat;
 import android.app.Activity;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -10,73 +9,47 @@ import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
 import android.webkit.CookieManager;
-import android.webkit.DownloadListener;
-import android.webkit.JavascriptInterface;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
-import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.Spinner;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class TelegramViewerActivity extends Activity {
     private static final int BG = Color.rgb(5, 7, 12);
     private static final int PANEL = Color.rgb(18, 25, 38);
 
-    private static final class Channel {
-        final String title;
-        final String username;
-        final String[] subjects;
+    private static final class StudyChannel {
+        final String name;
+        final String url;
+        final String subject;
 
-        Channel(String title, String username, String... subjects) {
-            this.title = title;
-            this.username = username;
-            this.subjects = subjects;
+        StudyChannel(String name, String url, String subject) {
+            this.name = name;
+            this.url = url;
+            this.subject = subject;
         }
     }
 
-    private final Channel[] channels = {
-            new Channel("Saleem Sir • Physics", "saleem_sir_phy_pw", "Physics"),
-            new Channel("Yakeen 2 Alpha 2027 • Botany + IOC",
-                    "Pw_Yakeen_2_Alpha_2027", "Botany", "Inorganic Chemistry (IOC)"),
-            new Channel("Amit Mahajan Sir • Physical Chemistry",
-                    "Amit_Mahajan_Sir_Chemistry", "Physical Chemistry")
+    private final StudyChannel[] channels = {
+            new StudyChannel("Yakeen 2.0 Alpha", "https://t.me/yakeen_2_aplha_2027", "BATCH"),
+            new StudyChannel("PHYSICS", "https://t.me/+1Us9I5v80jNjNDQ1", "PHYSICS"),
+            new StudyChannel("PHYSICAL CHEMISTRY", "https://t.me/+jPzDsZLxVUZmMGVl", "CHEMISTRY"),
+            new StudyChannel("INORGANIC CHEMISTRY", "https://t.me/+lVhOzKTDSs84MGJl", "CHEMISTRY"),
+            new StudyChannel("BOTANY", "https://t.me/+_MYNwUQF1n43YjRl", "BIOLOGY"),
+            new StudyChannel("ZOOLOGY", "https://t.me/+aLgCob6m9bhlYjU1", "BIOLOGY"),
+            new StudyChannel("ORGANIC CHEMISTRY", "https://t.me/+zrVWpo5mY5FmNDU1", "CHEMISTRY")
     };
 
-    private final ExecutorService downloadExecutor = Executors.newSingleThreadExecutor();
-    private Spinner channelSpinner;
-    private Spinner subjectSpinner;
-    private EditText teacherFilter;
-    private EditText keywordFilter;
-    private CheckBox videosOnly;
-    private TextView status;
     private WebView web;
-    private int selectedChannel = -1;
-    private boolean pageLoaded;
-    private String userAgent = "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36";
+    private TextView status;
+    private LinearLayout channelPanel;
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -86,419 +59,148 @@ public class TelegramViewerActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
-        setTitle("Telegram Study Viewer");
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(12), dp(10), dp(12), dp(8));
+        root.setPadding(dp(12), dp(8), dp(12), dp(8));
         root.setBackgroundColor(BG);
 
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
         TextView heading = new TextView(this);
-        heading.setText("TELEGRAM STUDY VIEWER");
+        heading.setText("STUDY CHANNELS");
         heading.setTextColor(Color.WHITE);
         heading.setTextSize(19);
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        heading.setGravity(Gravity.CENTER_VERTICAL);
-        root.addView(heading, new LinearLayout.LayoutParams(-1, dp(42)));
+        header.addView(heading, new LinearLayout.LayoutParams(0, dp(44), 1));
 
-        TextView note = new TextView(this);
-        note.setText("Public channel preview • choose a channel, then filter its video posts");
-        note.setTextColor(0xFFADB8C8);
-        note.setTextSize(12);
-        root.addView(note, new LinearLayout.LayoutParams(-1, dp(28)));
-
-        channelSpinner = new Spinner(this);
-        List<String> channelNames = new ArrayList<>();
-        for (Channel channel : channels) channelNames.add(channel.title);
-        channelSpinner.setAdapter(adapter(channelNames));
-        root.addView(channelSpinner, new LinearLayout.LayoutParams(-1, dp(46)));
-
-        subjectSpinner = new Spinner(this);
-        root.addView(subjectSpinner, new LinearLayout.LayoutParams(-1, dp(46)));
-
-        teacherFilter = new EditText(this);
-        teacherFilter.setSingleLine(true);
-        teacherFilter.setTextColor(Color.WHITE);
-        teacherFilter.setHintTextColor(0xFF8D99AA);
-        teacherFilter.setHint("Teacher name filter (e.g. teacher's name)");
-        teacherFilter.setTextSize(14);
-        teacherFilter.setPadding(dp(12), 0, dp(12), 0);
-        teacherFilter.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF526176));
-        root.addView(teacherFilter, new LinearLayout.LayoutParams(-1, dp(46)));
-
-        keywordFilter = new EditText(this);
-        keywordFilter.setSingleLine(true);
-        keywordFilter.setTextColor(Color.WHITE);
-        keywordFilter.setHintTextColor(0xFF8D99AA);
-        keywordFilter.setHint("Search topic or lecture title");
-        keywordFilter.setTextSize(14);
-        keywordFilter.setPadding(dp(12), 0, dp(12), 0);
-        keywordFilter.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF526176));
-        root.addView(keywordFilter, new LinearLayout.LayoutParams(-1, dp(46)));
-
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        actions.setGravity(Gravity.CENTER_VERTICAL);
-
-        videosOnly = new CheckBox(this);
-        videosOnly.setText("Videos only");
-        videosOnly.setTextColor(Color.WHITE);
-        videosOnly.setTextSize(12);
-        videosOnly.setChecked(true);
-        actions.addView(videosOnly, new LinearLayout.LayoutParams(0, dp(46), 1));
-
-        Button apply = actionButton("Apply filters");
-        actions.addView(apply, new LinearLayout.LayoutParams(0, dp(42), 1));
-        apply.setOnClickListener(v -> applyFilters());
-
-        Button reload = actionButton("Reload");
-        LinearLayout.LayoutParams reloadParams = new LinearLayout.LayoutParams(0, dp(42), 1);
-        reloadParams.leftMargin = dp(6);
-        actions.addView(reload, reloadParams);
-        reload.setOnClickListener(v -> reloadChannel());
-        root.addView(actions);
+        Button channelsButton = new Button(this);
+        channelsButton.setText("Channels");
+        channelsButton.setAllCaps(false);
+        channelsButton.setOnClickListener(v -> showChannelList());
+        header.addView(channelsButton, new LinearLayout.LayoutParams(-2, dp(42)));
+        root.addView(header);
 
         status = new TextView(this);
+        status.setText("Choose a teacher or subject channel below.");
         status.setTextColor(0xFFADB8C8);
-        status.setTextSize(11);
-        status.setPadding(dp(3), dp(3), dp(3), dp(5));
-        status.setText("Downloads are saved to Offline Library / Videos.");
-        root.addView(status, new LinearLayout.LayoutParams(-1, dp(28)));
+        status.setTextSize(12);
+        status.setPadding(dp(3), dp(4), dp(3), dp(8));
+        root.addView(status);
+
+        channelPanel = new LinearLayout(this);
+        channelPanel.setOrientation(LinearLayout.VERTICAL);
+        ScrollView channelScroll = new ScrollView(this);
+        channelScroll.setFillViewport(false);
+        channelScroll.addView(channelPanel);
+        root.addView(channelScroll, new LinearLayout.LayoutParams(-1, dp(0), 1));
 
         web = new WebView(this);
         web.setBackgroundColor(BG);
-        web.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        web.setVisibility(View.GONE);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        settings.setMediaPlaybackRequiresUserGesture(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
         settings.setSupportZoom(true);
         settings.setBuiltInZoomControls(true);
         settings.setDisplayZoomControls(false);
-        userAgent = settings.getUserAgentString();
-        CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
-        web.addJavascriptInterface(new DownloadBridge(), "PWStudyBridge");
-        web.setWebChromeClient(new WebChromeClient());
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+        CookieManager cookies = CookieManager.getInstance();
+        cookies.setAcceptCookie(true);
+        cookies.setAcceptThirdPartyCookies(web, true);
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return !isTelegramPage(request.getUrl().toString());
+                return !isAllowedTelegramUrl(request.getUrl());
             }
 
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return !isTelegramPage(url);
+                return !isAllowedTelegramUrl(Uri.parse(url));
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                if (!isTelegramPage(url)) return;
-                pageLoaded = true;
-                status.setText("Loaded: " + channels[Math.max(0, selectedChannel)].title
-                        + " • Save buttons appear on available video posts.");
-                view.evaluateJavascript(filterScript(), value -> applyFilters());
-            }
-
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest request,
-                                        WebResourceError error) {
-                super.onReceivedError(view, request, error);
-                if (request.isForMainFrame()) {
-                    pageLoaded = false;
-                    status.setText("Telegram page could not load. Check internet or channel availability.");
-                }
+                status.setText("Telegram page loaded inside PWStudy. Sign in if Telegram asks.");
             }
         });
-        web.setDownloadListener((url, userAgent, disposition, mimeType, contentLength) ->
-                queueDownload(url, null));
         root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        Button backToChannels = new Button(this);
+        backToChannels.setText("Back to study channels");
+        backToChannels.setAllCaps(false);
+        backToChannels.setOnClickListener(v -> showChannelList());
+        root.addView(backToChannels, new LinearLayout.LayoutParams(-1, dp(46)));
 
         setContentView(root);
         AppAppearance.apply(this, root);
+        buildChannelList();
+    }
 
-        channelSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view,
-                                       int position, long id) {
-                if (position != selectedChannel && position >= 0 && position < channels.length) {
-                    selectedChannel = position;
-                    updateSubjects();
-                    loadChannel();
-                }
+    private void buildChannelList() {
+        channelPanel.removeAllViews();
+        String currentGroup = "";
+        for (StudyChannel channel : channels) {
+            if (!channel.subject.equals(currentGroup)) {
+                currentGroup = channel.subject;
+                TextView group = new TextView(this);
+                group.setText(currentGroup);
+                group.setTextColor(0xFF9EBCE5);
+                group.setTextSize(12);
+                group.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+                group.setPadding(dp(4), dp(12), dp(4), dp(4));
+                channelPanel.addView(group, new LinearLayout.LayoutParams(-1, dp(34)));
             }
-
-            @Override
-            public void onNothingSelected(android.widget.AdapterView<?> parent) { }
-        });
-        updateSubjects();
+            Button button = new Button(this);
+            button.setAllCaps(false);
+            button.setText(channel.name + "\\nOPEN CHANNEL INSIDE APP");
+            button.setTextColor(Color.WHITE);
+            button.setTextSize(14);
+            button.setGravity(Gravity.CENTER);
+            button.setBackgroundTintList(android.content.res.ColorStateList.valueOf(PANEL));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(66));
+            params.bottomMargin = dp(8);
+            channelPanel.addView(button, params);
+            button.setOnClickListener(v -> openChannel(channel));
+        }
     }
 
-    private ArrayAdapter<String> adapter(List<String> values) {
-        ArrayAdapter<String> result = new ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_item, values);
-        result.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        return result;
+    private void openChannel(StudyChannel channel) {
+        channelPanel.setVisibility(View.GONE);
+        web.setVisibility(View.VISIBLE);
+        status.setText("Opening " + channel.name + " inside PWStudy…");
+        web.loadUrl(channel.url);
     }
 
-    private Button actionButton(String label) {
-        Button button = new Button(this);
-        button.setText(label);
-        button.setAllCaps(false);
-        button.setTextSize(12);
-        button.setTextColor(Color.WHITE);
-        button.setBackgroundTintList(
-                android.content.res.ColorStateList.valueOf(AppAppearance.accentColor(this)));
-        return button;
+    private void showChannelList() {
+        if (web != null) {
+            web.stopLoading();
+            web.setVisibility(View.GONE);
+        }
+        channelPanel.setVisibility(View.VISIBLE);
+        status.setText("Choose one of the configured study channels.");
     }
 
-    private void updateSubjects() {
-        if (selectedChannel < 0 || selectedChannel >= channels.length) return;
-        List<String> subjects = new ArrayList<>();
-        subjects.add("All subjects");
-        for (String subject : channels[selectedChannel].subjects) subjects.add(subject);
-        subjectSpinner.setAdapter(adapter(subjects));
-        subjectSpinner.setSelection(0);
-    }
-
-    private void loadChannel() {
-        if (selectedChannel < 0 || selectedChannel >= channels.length || web == null) return;
-        pageLoaded = false;
-        Channel channel = channels[selectedChannel];
-        status.setText("Loading " + channel.title + "…");
-        web.loadUrl("https://t.me/s/" + channel.username);
-    }
-
-    private void reloadChannel() {
-        if (web == null || selectedChannel < 0) return;
-        pageLoaded = false;
-        status.setText("Reloading Telegram channel…");
-        web.reload();
-    }
-
-    private boolean isTelegramPage(String value) {
-        if (value == null) return false;
-        Uri uri = Uri.parse(value);
+    private boolean isAllowedTelegramUrl(Uri uri) {
+        if (uri == null || !"https".equalsIgnoreCase(uri.getScheme())) return false;
         String host = uri.getHost();
-        return "https".equalsIgnoreCase(uri.getScheme())
-                && host != null && (host.equalsIgnoreCase("t.me")
-                || host.toLowerCase(Locale.ROOT).endsWith(".t.me"));
-    }
-
-    private String[] subjectKeywords(String subject) {
-        if ("Physics".equals(subject)) {
-            return new String[]{"physics", "mechanics", "kinematics", "laws of motion",
-                    "work energy", "gravitation", "electrostatics", "current electricity",
-                    "magnetism", "optics", "thermodynamics"};
-        }
-        if ("Botany".equals(subject)) {
-            return new String[]{"botany", "plant", "photosynthesis", "morphology",
-                    "anatomy", "plant kingdom", "biological classification"};
-        }
-        if ("Inorganic Chemistry (IOC)".equals(subject)) {
-            return new String[]{"inorganic", "ioc", "periodic table", "chemical bonding",
-                    "coordination compounds", "p-block", "d-block", "s-block", "metallurgy"};
-        }
-        if ("Physical Chemistry".equals(subject)) {
-            return new String[]{"physical chemistry", "mole concept", "thermodynamics",
-                    "chemical equilibrium", "ionic equilibrium", "chemical kinetics",
-                    "electrochemistry", "solutions", "redox"};
-        }
-        return new String[0];
-    }
-
-    private void applyFilters() {
-        if (!pageLoaded || web == null) {
-            status.setText("Wait for the Telegram channel to finish loading.");
-            return;
-        }
-        try {
-            String subject = String.valueOf(subjectSpinner.getSelectedItem());
-            JSONObject filter = new JSONObject();
-            filter.put("subject", subject);
-            filter.put("teacher", teacherFilter.getText().toString().trim());
-            filter.put("query", keywordFilter.getText().toString().trim());
-            filter.put("videoOnly", videosOnly.isChecked());
-            JSONArray keywords = new JSONArray();
-            for (String keyword : subjectKeywords(subject)) keywords.put(keyword);
-            filter.put("keywords", keywords);
-            web.evaluateJavascript("window.PWStudyApplyFilters && window.PWStudyApplyFilters("
-                    + filter.toString() + ");", null);
-            status.setText("Filters applied • " + subject
-                    + (teacherFilter.getText().length() > 0 ? " • " + teacherFilter.getText() : ""));
-        } catch (Exception e) {
-            status.setText("Could not apply filters: " + e.getMessage());
-        }
-    }
-
-    private String filterScript() {
-        return "(function(){"
-                + "if(window.PWStudyFilterInstalled)return;"
-                + "window.PWStudyFilterInstalled=true;"
-                + "var css=document.createElement('style');"
-                + "css.textContent='html,body{background:#05070c!important;color:#f4f7fb!important;}"
-                + ".tgme_widget_message{background:#111a29!important;color:#f4f7fb!important;}"
-                + ".tgme_widget_message_text{color:#f4f7fb!important;}"
-                + ".pwstudy-save-btn{display:block;width:100%;margin:8px 0;padding:10px;"
-                + "border:0;border-radius:8px;background:#246bc0;color:#fff;font-weight:700;}';"
-                + "document.head.appendChild(css);"
-                + "function getPosts(){return document.querySelectorAll('.tgme_widget_message_wrap');}"
-                + "function getVideo(post){return post.querySelector('video');}"
-                + "function decorate(){getPosts().forEach(function(post){"
-                + "var video=getVideo(post);if(!video||post.querySelector('.pwstudy-save-btn'))return;"
-                + "var button=document.createElement('button');button.type='button';"
-                + "button.className='pwstudy-save-btn';button.textContent='Save video to Offline Library';"
-                + "button.addEventListener('click',function(event){event.preventDefault();event.stopPropagation();"
-                + "var source=video.currentSrc||video.src||'';"
-                + "if(!source){var node=video.querySelector('source');if(node)source=node.src||'';}"
-                + "var caption=post.querySelector('.tgme_widget_message_text');"
-                + "var title=caption?(caption.innerText||caption.textContent||''):'Telegram video';"
-                + "if(window.PWStudyBridge)window.PWStudyBridge.saveVideo(source,title.slice(0,100));"
-                + "});post.appendChild(button);});}"
-                + "window.PWStudyApplyFilters=function(f){window.PWStudyLastFilters=f||{};"
-                + "var subject=(f.subject||'All subjects').toLowerCase();"
-                + "var teacher=(f.teacher||'').trim().toLowerCase();"
-                + "var query=(f.query||'').trim().toLowerCase();"
-                + "var keywords=f.keywords||[];var videoOnly=!!f.videoOnly;var count=0;"
-                + "getPosts().forEach(function(post){var text=(post.innerText||post.textContent||'').toLowerCase();"
-                + "var hasVideo=!!post.querySelector('video');var show=true;"
-                + "if(videoOnly&&!hasVideo)show=false;"
-                + "if(teacher&&text.indexOf(teacher)<0)show=false;"
-                + "if(query&&text.indexOf(query)<0)show=false;"
-                + "if(subject!=='all subjects'&&keywords.length&&!keywords.some(function(k){return text.indexOf(k)>=0;}))show=false;"
-                + "post.style.setProperty('display',show?'':'none','important');if(show)count++;});"
-                + "var counter=document.getElementById('pwstudy-filter-count');"
-                + "if(!counter){counter=document.createElement('div');counter.id='pwstudy-filter-count';"
-                + "counter.style.cssText='color:#aebbd0;padding:8px;font:13px sans-serif;text-align:center';"
-                + "document.body.insertBefore(counter,document.body.firstChild);}"
-                + "counter.textContent=count+' matching Telegram post(s)';};"
-                + "decorate();"
-                + "if(document.body&&!window.PWStudyObserver){window.PWStudyObserver=new MutationObserver(function(){"
-                + "decorate();if(window.PWStudyLastFilters)window.PWStudyApplyFilters(window.PWStudyLastFilters);"
-                + "});window.PWStudyObserver.observe(document.body,{childList:true,subtree:true});}"
-                + "})();";
-    }
-
-    private final class DownloadBridge {
-        @JavascriptInterface
-        public void saveVideo(String url, String title) {
-            runOnUiThread(() -> queueDownload(url, title));
-        }
-    }
-
-    private boolean isAllowedMediaUrl(String value) {
-        if (value == null || value.trim().isEmpty()) return false;
-        Uri uri = Uri.parse(value);
-        String host = uri.getHost();
-        if (!"https".equalsIgnoreCase(uri.getScheme()) || host == null) return false;
+        if (host == null) return false;
         host = host.toLowerCase(Locale.ROOT);
-        return host.equals("t.me") || host.endsWith(".telegram-cdn.org")
-                || host.equals("telegram-cdn.org") || host.equals("telesco.pe")
-                || host.endsWith(".telesco.pe") || host.equals("telegram.org")
+        return host.equals("t.me") || host.endsWith(".t.me")
+                || host.equals("web.telegram.org") || host.equals("telegram.org")
                 || host.endsWith(".telegram.org");
-    }
-
-    private void queueDownload(String url, String title) {
-        if (!isAllowedMediaUrl(url)) {
-            Toast.makeText(this, "यह Telegram video link डाउनलोड के लिए उपलब्ध नहीं है।",
-                    Toast.LENGTH_LONG).show();
-            return;
-        }
-        if (downloadExecutor.isShutdown()) return;
-        String safeTitle = title == null ? "" : title;
-        status.setText("Saving video to Offline Library…");
-        Toast.makeText(this, "Video download started", Toast.LENGTH_SHORT).show();
-        downloadExecutor.execute(() -> downloadVideo(url, safeTitle));
-    }
-
-    private void downloadVideo(String url, String title) {
-        HttpURLConnection connection = null;
-        File temporary = null;
-        try {
-            connection = (HttpURLConnection) new URL(url).openConnection();
-            connection.setConnectTimeout(20000);
-            connection.setReadTimeout(45000);
-            connection.setInstanceFollowRedirects(true);
-            connection.setRequestProperty("User-Agent", userAgent);
-            connection.setRequestProperty("Referer", "https://t.me/");
-            String cookies = CookieManager.getInstance().getCookie(url);
-            if (cookies != null) connection.setRequestProperty("Cookie", cookies);
-            connection.connect();
-
-            int response = connection.getResponseCode();
-            if (response < 200 || response >= 300) {
-                throw new Exception("Telegram server response " + response);
-            }
-            if (!isAllowedMediaUrl(connection.getURL().toString())) {
-                throw new Exception("Video redirected to an unsupported host");
-            }
-
-            String mime = connection.getContentType();
-            String finalUrl = connection.getURL().toString();
-            String extension = videoExtension(mime, finalUrl);
-            if (extension == null) throw new Exception("The selected Telegram post is not a direct video file");
-
-            File folder = new File(getExternalFilesDir(null), "PWStudy/Videos");
-            if (!folder.exists() && !folder.mkdirs()) {
-                throw new Exception("Offline Library Videos folder could not be created");
-            }
-            String baseName = title.replaceAll("[^a-zA-Z0-9._ -]", "_")
-                    .trim().replaceAll("\\s+", "_");
-            if (baseName.length() > 48) baseName = baseName.substring(0, 48);
-            if (baseName.isEmpty()) baseName = "Telegram_video";
-            String stem = baseName + "_" + System.currentTimeMillis();
-            File destination = new File(folder, stem + extension);
-            temporary = new File(folder, stem + extension + ".part");
-
-            try (InputStream input = new BufferedInputStream(connection.getInputStream());
-                 FileOutputStream output = new FileOutputStream(temporary)) {
-                byte[] buffer = new byte[16384];
-                int count;
-                while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
-                output.flush();
-            }
-            if (!temporary.renameTo(destination)) {
-                throw new Exception("Downloaded file could not be moved into Offline Library");
-            }
-            File saved = destination;
-            runOnUiThread(() -> {
-                status.setText("Saved: " + saved.getName() + " • Offline Library / Videos");
-                Toast.makeText(this, "Saved to Offline Library / Videos",
-                        Toast.LENGTH_LONG).show();
-            });
-        } catch (Exception e) {
-            if (temporary != null && temporary.exists()) temporary.delete();
-            String message = e.getMessage() == null ? "Download failed" : e.getMessage();
-            runOnUiThread(() -> {
-                status.setText("Download failed: " + message);
-                Toast.makeText(this, "Telegram download failed: " + message,
-                        Toast.LENGTH_LONG).show();
-            });
-        } finally {
-            if (connection != null) connection.disconnect();
-        }
-    }
-
-    private String videoExtension(String mime, String url) {
-        String lowerMime = mime == null ? "" : mime.toLowerCase(Locale.ROOT);
-        String path = Uri.parse(url).getPath();
-        String lowerPath = path == null ? "" : path.toLowerCase(Locale.ROOT);
-        if (lowerMime.startsWith("video/webm") || lowerPath.endsWith(".webm")) return ".webm";
-        if (lowerMime.startsWith("video/quicktime") || lowerPath.endsWith(".mov")) return ".mov";
-        if (lowerMime.startsWith("video/mp4") || lowerPath.endsWith(".mp4")
-                || lowerPath.endsWith(".m4v")) return lowerPath.endsWith(".m4v") ? ".m4v" : ".mp4";
-        if (lowerMime.startsWith("video/")) return ".mp4";
-        return null;
     }
 
     @Override
     public void onBackPressed() {
-        if (web != null && web.canGoBack()) {
+        if (web != null && web.getVisibility() == View.VISIBLE && web.canGoBack()) {
             web.goBack();
+        } else if (web != null && web.getVisibility() == View.VISIBLE) {
+            showChannelList();
         } else {
             super.onBackPressed();
         }
@@ -507,12 +209,10 @@ public class TelegramViewerActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (web != null) {
-            web.removeJavascriptInterface("PWStudyBridge");
             web.stopLoading();
             web.destroy();
             web = null;
         }
-        downloadExecutor.shutdown();
         super.onDestroy();
     }
 }
