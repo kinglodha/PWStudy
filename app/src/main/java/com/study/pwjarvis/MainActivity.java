@@ -52,8 +52,13 @@ public class MainActivity extends Activity {
         subtitleParams.bottomMargin = dp(22);
         root.addView(subtitle, subtitleParams);
 
-        Button loading = makeButton("LOADING", "Open teacher-wise Telegram study channels", true);
-        root.addView(loading, buttonParams(dp(76)));
+        Button website = makeButton("START STUDYING", "Open PW Jarvis lessons and videos", true);
+        root.addView(website, buttonParams(dp(76)));
+        website.setOnClickListener(v ->
+                startActivity(new Intent(this, WebActivity.class)));
+
+        Button loading = makeButton("TELEGRAM CHANNELS", "Open seven configured study channels", false);
+        root.addView(loading, spacedButtonParams());
         loading.setOnClickListener(v ->
                 startActivity(new Intent(this, TelegramViewerActivity.class)));
 
@@ -116,7 +121,7 @@ public class MainActivity extends Activity {
     private Button makeButton(String title, String detail, boolean primary) {
         Button button = new Button(this);
         button.setAllCaps(false);
-        button.setText(title + "\\n" + detail);
+        button.setText(title + "\n" + detail);
         button.setTextColor(Color.WHITE);
         button.setTextSize(14);
         button.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
