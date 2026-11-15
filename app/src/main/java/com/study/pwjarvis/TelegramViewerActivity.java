@@ -17,6 +17,7 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Button;
+import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -51,10 +52,12 @@ public class TelegramViewerActivity extends Activity {
     };
 
     private WebView web;
+    private LinearLayout header;
+    private FrameLayout webContainer;
+    private Button studyBackOverlay;
     private TextView status;
     private LinearLayout channelPanel;
     private ScrollView channelScroll;
-    private Button backToChannels;
     private boolean pageFailed;
 
     private int dp(float value) {
@@ -68,11 +71,12 @@ public class TelegramViewerActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(12), dp(8), dp(12), dp(8));
+        // Keep channel view edge-to-edge inside the app. Pad only the list.
         root.setBackgroundColor(BG);
 
-        LinearLayout header = new LinearLayout(this);
+        header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setPadding(dp(12), dp(8), dp(12), dp(8));
         TextView heading = new TextView(this);
         heading.setText("STUDY CHANNELS");
         heading.setTextColor(Color.WHITE);
@@ -91,19 +95,21 @@ public class TelegramViewerActivity extends Activity {
         status.setText("Choose one of your seven study channels.");
         status.setTextColor(0xFFADB8C8);
         status.setTextSize(12);
-        status.setPadding(dp(3), dp(4), dp(3), dp(8));
+        status.setPadding(dp(15), dp(4), dp(15), dp(8));
         root.addView(status);
 
         channelPanel = new LinearLayout(this);
         channelPanel.setOrientation(LinearLayout.VERTICAL);
         channelScroll = new ScrollView(this);
         channelScroll.setFillViewport(false);
+        channelScroll.setPadding(dp(12), 0, dp(12), dp(8));
         channelScroll.addView(channelPanel);
         root.addView(channelScroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
+        webContainer = new FrameLayout(this);
+        webContainer.setVisibility(View.GONE);
         web = new WebView(this);
         web.setBackgroundColor(BG);
-        web.setVisibility(View.GONE);
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
@@ -170,14 +176,24 @@ public class TelegramViewerActivity extends Activity {
                 }
             }
         });
-        root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
+        webContainer.addView(web, new FrameLayout.LayoutParams(-1, -1));
 
-        backToChannels = new Button(this);
-        backToChannels.setVisibility(View.GONE);
-        backToChannels.setText("Back to study channels");
-        backToChannels.setAllCaps(false);
-        backToChannels.setOnClickListener(v -> showChannelList());
-        root.addView(backToChannels, new LinearLayout.LayoutParams(-1, dp(46)));
+        // Telegram Web is a single-page application. Its own top-left back
+        // arrow can open the unrestricted Telegram inbox instead of PWStudy.
+        // Cover that control with a native button owned by PWStudy.
+        studyBackOverlay = new Button(this);
+        studyBackOverlay.setText("← Channels");
+        studyBackOverlay.setAllCaps(false);
+        studyBackOverlay.setTextSize(13);
+        studyBackOverlay.setTextColor(Color.WHITE);
+        studyBackOverlay.setPadding(0, 0, 0, 0);
+        studyBackOverlay.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(PANEL));
+        studyBackOverlay.setOnClickListener(v -> showChannelList());
+        FrameLayout.LayoutParams overlayParams = new FrameLayout.LayoutParams(
+                dp(106), dp(64), Gravity.TOP | Gravity.START);
+        webContainer.addView(studyBackOverlay, overlayParams);
+        root.addView(webContainer, new LinearLayout.LayoutParams(-1, 0, 1));
 
         setContentView(root);
         AppAppearance.apply(this, root);
@@ -214,8 +230,9 @@ public class TelegramViewerActivity extends Activity {
 
     private void showWebPage(String url, String message) {
         channelScroll.setVisibility(View.GONE);
-        web.setVisibility(View.VISIBLE);
-        backToChannels.setVisibility(View.VISIBLE);
+        header.setVisibility(View.GONE);
+        status.setVisibility(View.GONE);
+        webContainer.setVisibility(View.VISIBLE);
         status.setText(message);
         web.loadUrl(url);
     }
@@ -233,10 +250,11 @@ public class TelegramViewerActivity extends Activity {
     private void showChannelList() {
         if (web != null) {
             web.stopLoading();
-            web.setVisibility(View.GONE);
         }
+        webContainer.setVisibility(View.GONE);
+        header.setVisibility(View.VISIBLE);
+        status.setVisibility(View.VISIBLE);
         channelScroll.setVisibility(View.VISIBLE);
-        backToChannels.setVisibility(View.GONE);
         status.setText("Choose one of your seven study channels.");
     }
 
@@ -296,7 +314,7 @@ public class TelegramViewerActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (web != null && web.getVisibility() == View.VISIBLE) {
+        if (web != null && webContainer.getVisibility() == View.VISIBLE) {
             // Never navigate into Telegram Web's previous pages on Android Back.
             showChannelList();
         } else {
