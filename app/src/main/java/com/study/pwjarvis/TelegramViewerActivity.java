@@ -2,9 +2,19 @@ package com.study.pwjarvis;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.Uri;
+import android.widget.Toast;
+
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
@@ -59,6 +69,7 @@ public class TelegramViewerActivity extends Activity {
     private LinearLayout channelPanel;
     private ScrollView channelScroll;
     private boolean pageFailed;
+    private final ExecutorService pdfWorker = Executors.newSingleThreadExecutor();
 
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
@@ -123,6 +134,16 @@ public class TelegramViewerActivity extends Activity {
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
         web.setWebChromeClient(new WebChromeClient());
+        web.setDownloadListener((url, userAgent, contentDisposition, mimeType, length) -> {
+            Uri uri = Uri.parse(url);
+            if (isPdfLink(uri) || (mimeType != null
+                    && mimeType.toLowerCase(Locale.ROOT).contains("pdf"))) {
+                downloadAndOpenPdf(url, userAgent);
+            } else if (url != null && url.startsWith("blob:")) {
+                Toast.makeText(this, "Telegram Web blob downloads need native integration.",
+                        Toast.LENGTH_LONG).show();
+            }
+        });
         CookieManager cookies = CookieManager.getInstance();
         cookies.setAcceptCookie(true);
         cookies.setAcceptThirdPartyCookies(web, true);
@@ -260,6 +281,10 @@ public class TelegramViewerActivity extends Activity {
 
     private boolean handleNavigation(Uri uri) {
         if (uri == null) return true;
+        if (isPdfLink(uri)) {
+            downloadAndOpenPdf(uri.toString(), web.getSettings().getUserAgentString());
+            return true;
+        }
         if (isAllowedTelegramUrl(uri)) return false;
         String destination = toTelegramWebLink(uri);
         if (destination != null) {
@@ -268,6 +293,87 @@ public class TelegramViewerActivity extends Activity {
         }
         status.setText("Blocked navigation outside Telegram inside PWStudy.");
         return true;
+    }
+
+    private boolean isPdfLink(Uri uri) {
+        if (uri == null || !"https".equalsIgnoreCase(uri.getScheme())) return false;
+        String path = uri.getPath();
+        return path != null && path.toLowerCase(Locale.ROOT).endsWith(".pdf");
+    }
+
+    /**
+     * Telegram Web cannot render most PDF responses itself. For real HTTPS PDF
+     * URLs, save an authenticated copy in the offline library and open our
+     * native reader. Blob URLs still require a native Telegram media API.
+     */
+    private void downloadAndOpenPdf(String url, String userAgent) {
+        if (url == null || !url.startsWith("https://")) {
+            Toast.makeText(this, "Only HTTPS PDF downloads are supported.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        Toast.makeText(this, "Opening PDF in PWStudy…", Toast.LENGTH_SHORT).show();
+        final String cookies = CookieManager.getInstance().getCookie(url);
+        pdfWorker.execute(() -> {
+            HttpURLConnection connection = null;
+            File temp = null;
+            try {
+                connection = (HttpURLConnection) new URL(url).openConnection();
+                connection.setConnectTimeout(20000);
+                connection.setReadTimeout(60000);
+                connection.setInstanceFollowRedirects(true);
+                connection.setRequestProperty("Accept", "application/pdf,*/*");
+                connection.setRequestProperty("Referer", TELEGRAM_WEB);
+                if (userAgent != null) connection.setRequestProperty("User-Agent", userAgent);
+                if (cookies != null) connection.setRequestProperty("Cookie", cookies);
+                if (connection.getResponseCode() < 200 || connection.getResponseCode() >= 300)
+                    throw new Exception("HTTP " + connection.getResponseCode());
+                File parent = new File(getExternalFilesDir(null), "PWStudy/Documents");
+                if (!parent.isDirectory() && !parent.mkdirs())
+                    throw new Exception("Cannot create PDF folder");
+                String base = Uri.parse(url).getLastPathSegment();
+                if (base == null || !base.toLowerCase(Locale.ROOT).endsWith(".pdf"))
+                    base = "Telegram.pdf";
+                base = base.replaceAll("[^a-zA-Z0-9._-]", "_");
+                String filename = System.currentTimeMillis() + "_" + base;
+                File destination = new File(parent, filename);
+                temp = new File(parent, filename + ".download");
+                try (BufferedInputStream in = new BufferedInputStream(connection.getInputStream());
+                     FileOutputStream out = new FileOutputStream(temp)) {
+                    byte[] header = new byte[1024];
+                    int size = in.read(header);
+                    if (size < 5) throw new Exception("Empty or invalid PDF");
+                    boolean pdf = false;
+                    for (int i = 0; i <= size - 5; i++) {
+                        if (header[i] == '%' && header[i+1] == 'P' &&
+                                header[i+2] == 'D' && header[i+3] == 'F' &&
+                                header[i+4] == '-') { pdf = true; break; }
+                    }
+                    if (!pdf) throw new Exception("Server returned a page, not a PDF");
+                    out.write(header, 0, size);
+                    byte[] buffer = new byte[16384];
+                    int n;
+                    while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+                }
+                if (!temp.renameTo(destination))
+                    throw new Exception("Cannot finish downloaded PDF");
+                if (!isFinishing() && !isDestroyed()) {
+                    runOnUiThread(() -> {
+                        Intent open = new Intent(this, PdfActivity.class);
+                        open.putExtra("file_path", destination.getAbsolutePath());
+                        startActivity(open);
+                    });
+                }
+            } catch (Exception error) {
+                String message = error.getMessage();
+                if (!isFinishing() && !isDestroyed()) runOnUiThread(() ->
+                        Toast.makeText(this, "PDF could not open: " + message,
+                                Toast.LENGTH_LONG).show());
+            } finally {
+                if (temp != null && temp.exists()) temp.delete();
+                if (connection != null) connection.disconnect();
+            }
+        });
     }
 
     // Telegram's t.me pages are previews, not an authenticated channel client.
@@ -324,6 +430,7 @@ public class TelegramViewerActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        pdfWorker.shutdownNow();
         if (web != null) {
             web.stopLoading();
             web.destroy();
