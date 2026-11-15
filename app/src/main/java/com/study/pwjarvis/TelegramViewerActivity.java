@@ -54,6 +54,7 @@ public class TelegramViewerActivity extends Activity {
     private TextView status;
     private LinearLayout channelPanel;
     private ScrollView channelScroll;
+    private Button backToChannels;
     private boolean pageFailed;
 
     private int dp(float value) {
@@ -79,12 +80,6 @@ public class TelegramViewerActivity extends Activity {
         heading.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         header.addView(heading, new LinearLayout.LayoutParams(0, dp(44), 1));
 
-        Button loginButton = new Button(this);
-        loginButton.setText("Login");
-        loginButton.setAllCaps(false);
-        loginButton.setOnClickListener(v -> openTelegramLogin());
-        header.addView(loginButton, new LinearLayout.LayoutParams(-2, dp(42)));
-
         Button channelsButton = new Button(this);
         channelsButton.setText("Channels");
         channelsButton.setAllCaps(false);
@@ -93,7 +88,7 @@ public class TelegramViewerActivity extends Activity {
         root.addView(header);
 
         status = new TextView(this);
-        status.setText("Sign in using Telegram Web, then choose one of the seven channels.");
+        status.setText("Choose one of your seven study channels.");
         status.setTextColor(0xFFADB8C8);
         status.setTextSize(12);
         status.setPadding(dp(3), dp(4), dp(3), dp(8));
@@ -141,7 +136,7 @@ public class TelegramViewerActivity extends Activity {
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap icon) {
                 super.onPageStarted(view, url, icon);
                 pageFailed = false;
-                status.setText("Loading Telegram Web inside PWStudy…");
+                status.setText("Opening selected study channel…");
             }
 
             @Override
@@ -170,14 +165,15 @@ public class TelegramViewerActivity extends Activity {
                 super.onPageFinished(view, url);
                 CookieManager.getInstance().flush();
                 if (!pageFailed) {
-                    status.setText("Telegram Web loaded. Sign in by phone if needed. "
-                            + "Channel invitations may still require a native Telegram client.");
+                    status.setText("Use Back to return to your seven study channels. "
+                            + "Telegram may request sign-in if this device has no saved session.");
                 }
             }
         });
         root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1));
 
-        Button backToChannels = new Button(this);
+        backToChannels = new Button(this);
+        backToChannels.setVisibility(View.GONE);
         backToChannels.setText("Back to study channels");
         backToChannels.setAllCaps(false);
         backToChannels.setOnClickListener(v -> showChannelList());
@@ -219,13 +215,9 @@ public class TelegramViewerActivity extends Activity {
     private void showWebPage(String url, String message) {
         channelScroll.setVisibility(View.GONE);
         web.setVisibility(View.VISIBLE);
+        backToChannels.setVisibility(View.VISIBLE);
         status.setText(message);
         web.loadUrl(url);
-    }
-
-    private void openTelegramLogin() {
-        showWebPage(TELEGRAM_WEB,
-                "Telegram Web sign-in: use your phone number and verification code.");
     }
 
     private void openChannel(StudyChannel channel) {
@@ -235,7 +227,7 @@ public class TelegramViewerActivity extends Activity {
             return;
         }
         showWebPage(link, "Opening " + channel.name
-                + " in Telegram Web. You may need to sign in first.");
+                + ". Sign in only if Telegram requests it.");
     }
 
     private void showChannelList() {
@@ -244,7 +236,8 @@ public class TelegramViewerActivity extends Activity {
             web.setVisibility(View.GONE);
         }
         channelScroll.setVisibility(View.VISIBLE);
-        status.setText("Choose one of the seven channels. Login remains available above.");
+        backToChannels.setVisibility(View.GONE);
+        status.setText("Choose one of your seven study channels.");
     }
 
     private boolean handleNavigation(Uri uri) {
@@ -303,9 +296,8 @@ public class TelegramViewerActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (web != null && web.getVisibility() == View.VISIBLE && web.canGoBack()) {
-            web.goBack();
-        } else if (web != null && web.getVisibility() == View.VISIBLE) {
+        if (web != null && web.getVisibility() == View.VISIBLE) {
+            // Never navigate into Telegram Web's previous pages on Android Back.
             showChannelList();
         } else {
             super.onBackPressed();
