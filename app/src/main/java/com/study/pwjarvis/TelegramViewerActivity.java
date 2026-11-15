@@ -52,7 +52,9 @@ public class TelegramViewerActivity extends Activity {
     }
 
     private final StudyChannel[] channels = {
+            new StudyChannel("Yakeen 2.0 Alpha", "https://t.me/yakeen_2_aplha_2027", "BATCH"),
             new StudyChannel("Yakeen NEET", "https://t.me/YakeenNeet_3", "BATCH"),
+            new StudyChannel("PHYSICS", "https://t.me/+1Us9I5v80jNjNDQ1", "PHYSICS"),
             new StudyChannel("SALEEM SIR PHYSICS", "https://t.me/Saleem_Sir_physics_NEET", "PHYSICS"),
             new StudyChannel("PHYSICAL CHEMISTRY", "https://t.me/+jPzDsZLxVUZmMGVl", "CHEMISTRY"),
             new StudyChannel("INORGANIC CHEMISTRY", "https://t.me/+lVhOzKTDSs84MGJl", "CHEMISTRY"),
@@ -103,7 +105,7 @@ public class TelegramViewerActivity extends Activity {
         root.addView(header);
 
         status = new TextView(this);
-        status.setText("Choose one of your seven study channels.");
+        status.setText("Choose one of your nine study channels.");
         status.setTextColor(0xFFADB8C8);
         status.setTextSize(12);
         status.setPadding(dp(15), dp(4), dp(15), dp(8));
@@ -192,7 +194,7 @@ public class TelegramViewerActivity extends Activity {
                 super.onPageFinished(view, url);
                 CookieManager.getInstance().flush();
                 if (!pageFailed) {
-                    status.setText("Use Back to return to your seven study channels. "
+                    status.setText("Use Back to return to your nine study channels. "
                             + "Telegram may request sign-in if this device has no saved session.");
                 }
             }
@@ -276,7 +278,7 @@ public class TelegramViewerActivity extends Activity {
         header.setVisibility(View.VISIBLE);
         status.setVisibility(View.VISIBLE);
         channelScroll.setVisibility(View.VISIBLE);
-        status.setText("Choose one of your seven study channels.");
+        status.setText("Choose one of your nine study channels.");
     }
 
     private boolean handleNavigation(Uri uri) {
