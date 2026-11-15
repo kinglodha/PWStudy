@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main", "pwstudy-v1", "pwstudy-telegram-fix" ]
+    branches: [ "main", "pwstudy-v1", "pwstudy-telegram-fix", "pwstudy-telegram-native-wip" ]
   workflow_dispatch:
 
 jobs:
