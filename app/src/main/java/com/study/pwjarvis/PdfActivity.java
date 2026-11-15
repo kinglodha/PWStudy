@@ -3,6 +3,7 @@ package com.study.pwjarvis;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.graphics.Bitmap;
+import android.net.Uri;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.drawable.Drawable;
@@ -34,6 +35,7 @@ public class PdfActivity extends Activity {
     private ParcelFileDescriptor descriptor;
     private PdfRenderer renderer;
     private PdfRenderer.Page page;
+    private Bitmap renderedBitmap;
     private ImageView image;
     private TextView pageLabel;
     private int pageIndex = 0;
@@ -202,11 +204,24 @@ public class PdfActivity extends Activity {
         });
 
         try {
-            String path = getIntent().getStringExtra("file_path");
-            if (path == null) throw new Exception("PDF file path missing");
-            descriptor = ParcelFileDescriptor.open(new File(path), ParcelFileDescriptor.MODE_READ_ONLY);
+            Uri uri = getIntent().getData();
+            if (uri != null && "content".equalsIgnoreCase(uri.getScheme())) {
+                // SAF and Android Downloads files must be opened using their
+                // content URI, not by constructing an inaccessible disk path.
+                descriptor = getContentResolver().openFileDescriptor(uri, "r");
+            } else {
+                String path = getIntent().getStringExtra("file_path");
+                if (path == null && uri != null && "file".equalsIgnoreCase(uri.getScheme()))
+                    path = uri.getPath();
+                if (path == null) throw new Exception("PDF path or URI missing");
+                File file = new File(path);
+                if (!file.isFile()) throw new Exception("PDF file not found");
+                descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
+            }
+            if (descriptor == null) throw new Exception("Cannot access selected PDF");
             renderer = new PdfRenderer(descriptor);
-            showPage(0);
+            if (renderer.getPageCount() == 0) throw new Exception("PDF contains no pages");
+            showPage(state == null ? 0 : Math.max(0, Math.min(renderer.getPageCount()-1, state.getInt("page", 0))));
         } catch (Exception e) {
             Toast.makeText(this, "PDF नहीं खुल पाया: " + e.getMessage(), Toast.LENGTH_LONG).show();
             finish();
@@ -390,8 +405,17 @@ public class PdfActivity extends Activity {
         try {
             if (page != null) page.close();
             page = renderer.openPage(pageIndex);
-            int width = Math.max(1, getResources().getDisplayMetrics().widthPixels - dp(20));
-            int height = Math.max(1, (int)(width * (page.getHeight() / (float) page.getWidth())));
+            // Bound bitmap allocation for oversized scans and unusually long
+            // pages. The previous unbounded render could crash on large PDFs.
+            float aspect = page.getHeight() / (float) Math.max(1, page.getWidth());
+            int desiredWidth = Math.max(1, getResources().getDisplayMetrics().widthPixels * 2);
+            int width = Math.max(1, Math.min(3072, Math.min(desiredWidth,
+                    (int) Math.sqrt(6000000f / Math.max(.01f, aspect)))));
+            int height = Math.max(1, Math.round(width * aspect));
+            if (height > 4096) {
+                width = Math.max(1, Math.round(width * (4096f / height)));
+                height = 4096;
+            }
             Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
             bitmap.eraseColor(Color.WHITE);
             page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
@@ -403,6 +427,10 @@ public class PdfActivity extends Activity {
                 bitmap = rotated;
             }
             image.setImageBitmap(bitmap);
+            Bitmap previous = renderedBitmap;
+            renderedBitmap = bitmap;
+            if (previous != null && previous != bitmap && !previous.isRecycled())
+                previous.recycle();
             zoom = 1f;
             matrixReady = false;
             updateImageMatrix(0, 0);
@@ -412,11 +440,19 @@ public class PdfActivity extends Activity {
         }
     }
 
+    @Override protected void onSaveInstanceState(Bundle out) {
+        out.putInt("page", pageIndex);
+        super.onSaveInstanceState(out);
+    }
+
     @Override protected void onDestroy() {
         controlHandler.removeCallbacks(hideControlsTask);
         try { if (page != null) page.close(); } catch (Exception ignored) {}
         try { if (renderer != null) renderer.close(); } catch (Exception ignored) {}
         try { if (descriptor != null) descriptor.close(); } catch (Exception ignored) {}
+        image.setImageDrawable(null);
+        if (renderedBitmap != null && !renderedBitmap.isRecycled()) renderedBitmap.recycle();
+        renderedBitmap = null;
         super.onDestroy();
     }
 }
