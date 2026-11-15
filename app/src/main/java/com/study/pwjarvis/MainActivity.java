@@ -34,7 +34,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("PW JARVIS STUDY");
+        title.setText("PWSTUDY");
         title.setTextColor(Color.WHITE);
         title.setTextSize(26);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
@@ -52,12 +52,7 @@ public class MainActivity extends Activity {
         subtitleParams.bottomMargin = dp(22);
         root.addView(subtitle, subtitleParams);
 
-        Button website = makeButton("START STUDYING", "Open PW Jarvis lessons and videos", true);
-        root.addView(website, buttonParams(dp(76)));
-        website.setOnClickListener(v ->
-                startActivity(new Intent(this, WebActivity.class)));
-
-        Button loading = makeButton("TELEGRAM CHANNELS", "Open seven configured study channels", false);
+        Button loading = makeButton("TELEGRAM CHANNELS", "Log in and open seven study channels", true);
         root.addView(loading, spacedButtonParams());
         loading.setOnClickListener(v ->
                 startActivity(new Intent(this, TelegramViewerActivity.class)));
