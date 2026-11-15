@@ -52,7 +52,7 @@ public class MainActivity extends Activity {
         subtitleParams.bottomMargin = dp(22);
         root.addView(subtitle, subtitleParams);
 
-        Button loading = makeButton("TELEGRAM CHANNELS", "Open your seven study channels", true);
+        Button loading = makeButton("TELEGRAM CHANNELS", "Open your nine study channels", true);
         root.addView(loading, spacedButtonParams());
         loading.setOnClickListener(v ->
                 startActivity(new Intent(this, TelegramViewerActivity.class)));
