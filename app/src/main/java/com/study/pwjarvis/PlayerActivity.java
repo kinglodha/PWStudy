@@ -10,6 +10,7 @@ import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaMetadataRetriever;
 import android.media.audiofx.AudioEffect;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -56,6 +57,7 @@ public class PlayerActivity extends Activity {
     private float speed = 1f;
     private int repeatMode = Player.REPEAT_MODE_OFF;
     private String videoPath;
+    private Uri videoUri;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService work = Executors.newSingleThreadExecutor();
     private final Runnable sleepAction = () -> {
@@ -74,7 +76,8 @@ public class PlayerActivity extends Activity {
         // Do not force an orientation at startup: users can rotate without a
         // forced activity restart or losing ExoPlayer state.
         videoPath = getIntent().getStringExtra("file_path");
-        if (videoPath == null || !new File(videoPath).isFile()) {
+        videoUri = getIntent().getData();
+        if (videoUri == null && (videoPath == null || !new File(videoPath).isFile())) {
             toast("Video file not found. Open it from your PWStudy library.");
             finish();
             return;
@@ -158,7 +161,7 @@ public class PlayerActivity extends Activity {
 
     @Override protected void onStart() {
         super.onStart();
-        if (videoPath == null || player != null) return;
+        if ((videoPath == null && videoUri == null) || player != null) return;
         try {
             player = new ExoPlayer.Builder(this).build();
             player.addListener(new Player.Listener() {
@@ -167,7 +170,8 @@ public class PlayerActivity extends Activity {
                 }
             });
             playerView.setPlayer(player);
-            player.setMediaItem(MediaItem.fromUri(android.net.Uri.fromFile(new File(videoPath))));
+            player.setMediaItem(MediaItem.fromUri(videoUri != null ? videoUri
+                    : Uri.fromFile(new File(videoPath))));
             player.setRepeatMode(repeatMode);
             player.setPlaybackSpeed(speed);
             player.setVolume(muted ? 0f : 1f);
@@ -247,14 +251,15 @@ public class PlayerActivity extends Activity {
     }
 
     private void saveScreenshot() {
-        if (player == null || videoPath == null) return;
+        if (player == null || (videoPath == null && videoUri == null)) return;
         final long positionUs = player.getCurrentPosition() * 1000L;
         toast("Saving video frame…");
         work.execute(() -> {
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
             Bitmap bitmap = null;
             try {
-                retriever.setDataSource(videoPath);
+                if (videoUri != null) retriever.setDataSource(this, videoUri);
+                else retriever.setDataSource(videoPath);
                 bitmap = retriever.getFrameAtTime(positionUs,
                         MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
                 if (bitmap == null) throw new Exception("Frame unavailable for this file");
