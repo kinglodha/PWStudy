@@ -136,8 +136,11 @@ public class LibraryActivity extends Activity {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) { refresh(); }
             @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
         });
-        list.setOnItemClickListener((parent, view, position, id) -> openFile(shown.get(position)));
+        list.setOnItemClickListener((parent, view, position, id) -> {
+            if (position >= 0 && position < shown.size()) openFile(shown.get(position));
+        });
         list.setOnItemLongClickListener((parent, view, position, id) -> {
+            if (position < 0 || position >= shown.size()) return true;
             showFileActions(shown.get(position));
             return true;
         });
