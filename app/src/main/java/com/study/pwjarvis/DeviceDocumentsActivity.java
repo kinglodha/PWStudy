@@ -170,27 +170,34 @@ public class DeviceDocumentsActivity extends Activity {
         return String.format(java.util.Locale.US,"%.1f MB",n/(1024d*1024d));
     }
 
-    private void openDocument(DocumentFile doc){
-        String name=doc.getName()==null?"document":doc.getName();
-        String lower=name.toLowerCase(java.util.Locale.ROOT);
-        try{
-            if(lower.endsWith(".pdf")||lower.endsWith(".mp4")||lower.endsWith(".mkv")||lower.endsWith(".webm")||lower.endsWith(".mov")){
-                File cache=new File(getCacheDir(),"device_open"); if(!cache.exists())cache.mkdirs();
-                File target=new File(cache,name.replaceAll("[^a-zA-Z0-9._-]","_"));
-                try(InputStream in=getContentResolver().openInputStream(doc.getUri());FileOutputStream out=new FileOutputStream(target)){
-                    if(in==null)throw new Exception("Cannot read selected file");
-                    byte[] buffer=new byte[16384]; int count;
-                    while((count=in.read(buffer))!=-1)out.write(buffer,0,count);
-                }
-                Intent intent=lower.endsWith(".pdf")?new Intent(this,PdfActivity.class):new Intent(this,PlayerActivity.class);
-                intent.putExtra("file_path",target.getAbsolutePath()); startActivity(intent);
-            }else{
-                Intent view=new Intent(Intent.ACTION_VIEW);
-                view.setDataAndType(doc.getUri(),getContentResolver().getType(doc.getUri()));
+    private void openDocument(DocumentFile doc) {
+        String name = doc.getName() == null ? "document" : doc.getName();
+        String lower = name.toLowerCase(java.util.Locale.ROOT);
+        try {
+            if (lower.endsWith(".pdf") || lower.endsWith(".mp4") ||
+                    lower.endsWith(".mkv") || lower.endsWith(".webm") ||
+                    lower.endsWith(".mov") || lower.endsWith(".m4v") ||
+                    lower.endsWith(".mp3")) {
+                // SAF content:// URIs already have a persistent read grant from
+                // ACTION_OPEN_DOCUMENT_TREE; copying large files on the UI
+                // thread used to make taps appear broken or freeze the app.
+                Intent intent = lower.endsWith(".pdf")
+                        ? new Intent(this, PdfActivity.class)
+                        : new Intent(this, PlayerActivity.class);
+                intent.setData(doc.getUri());
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivity(intent);
+            } else {
+                Intent view = new Intent(Intent.ACTION_VIEW);
+                view.setDataAndType(doc.getUri(),
+                        getContentResolver().getType(doc.getUri()));
                 view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                startActivity(Intent.createChooser(view,"Open document"));
+                startActivity(Intent.createChooser(view, "Open document"));
             }
-        }catch(Exception e){Toast.makeText(this,"Cannot open file: "+e.getMessage(),Toast.LENGTH_LONG).show();}
+        } catch (Exception e) {
+            Toast.makeText(this, "Cannot open file: " + e.getMessage(),
+                    Toast.LENGTH_LONG).show();
+        }
     }
 
     @Override public void onBackPressed(){
