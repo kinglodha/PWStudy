@@ -52,8 +52,8 @@ public class TelegramViewerActivity extends Activity {
     }
 
     private final StudyChannel[] channels = {
-            new StudyChannel("Yakeen 2.0 Alpha", "https://t.me/yakeen_2_aplha_2027", "BATCH"),
-            new StudyChannel("PHYSICS", "https://t.me/+1Us9I5v80jNjNDQ1", "PHYSICS"),
+            new StudyChannel("Yakeen NEET", "https://t.me/YakeenNeet_3", "BATCH"),
+            new StudyChannel("SALEEM SIR PHYSICS", "https://t.me/Saleem_Sir_physics_NEET", "PHYSICS"),
             new StudyChannel("PHYSICAL CHEMISTRY", "https://t.me/+jPzDsZLxVUZmMGVl", "CHEMISTRY"),
             new StudyChannel("INORGANIC CHEMISTRY", "https://t.me/+lVhOzKTDSs84MGJl", "CHEMISTRY"),
             new StudyChannel("BOTANY", "https://t.me/+_MYNwUQF1n43YjRl", "BIOLOGY"),
