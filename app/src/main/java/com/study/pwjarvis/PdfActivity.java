@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.drawable.Drawable;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.pdf.PdfRenderer;
@@ -47,6 +48,20 @@ public class PdfActivity extends Activity {
     private final Runnable hideControlsTask = () -> setControlsVisible(false);
     private ScaleGestureDetector scaleDetector;
     private GestureDetector gestureDetector;
+    private final Matrix imageMatrix = new Matrix();
+    private float baseScale = 1f;
+    private float imageScale = 1f;
+    private float offsetX = 0f;
+    private float offsetY = 0f;
+    private boolean matrixReady = false;
+    private int activePointerId = MotionEvent.INVALID_POINTER_ID;
+    private float lastTouchX;
+    private float lastTouchY;
+    private float lastScaleFocusX;
+    private float lastScaleFocusY;
+    private boolean hadMultiplePointers;
+    private boolean gesturePannedX;
+    private boolean gesturePannedY;
     private int dp(int v) { return (int)(v * getResources().getDisplayMetrics().density + 0.5f); }
 
     @Override
@@ -56,10 +71,18 @@ public class PdfActivity extends Activity {
         root.setBackgroundColor(Color.rgb(12, 16, 25));
         image = new ImageView(this);
         image.setBackgroundColor(Color.WHITE);
-        image.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        image.setScaleType(ImageView.ScaleType.MATRIX);
         image.setAdjustViewBounds(false);
         image.setHapticFeedbackEnabled(false);
         root.addView(image, new FrameLayout.LayoutParams(-1, -1));
+        image.addOnLayoutChangeListener((v, left, top, right, bottom,
+                                         oldLeft, oldTop, oldRight, oldBottom) -> {
+            int oldWidth = oldRight - oldLeft;
+            int oldHeight = oldBottom - oldTop;
+            if (right - left != oldWidth || bottom - top != oldHeight) {
+                updateImageMatrix(oldWidth, oldHeight);
+            }
+        });
         controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(5), dp(5), dp(5), dp(5));
@@ -88,8 +111,20 @@ public class PdfActivity extends Activity {
         controls.addView(navigation, new LinearLayout.LayoutParams(-1, dp(44)));
         setContentView(root); scheduleControlsHide();
         scaleDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            @Override public boolean onScaleBegin(ScaleGestureDetector detector) {
+                hadMultiplePointers = true;
+                lastScaleFocusX = detector.getFocusX();
+                lastScaleFocusY = detector.getFocusY();
+                return true;
+            }
             @Override public boolean onScale(ScaleGestureDetector detector) {
-                setZoom(zoom * detector.getScaleFactor());
+                float focusX = detector.getFocusX();
+                float focusY = detector.getFocusY();
+                offsetX += focusX - lastScaleFocusX;
+                offsetY += focusY - lastScaleFocusY;
+                setZoomAt(zoom * detector.getScaleFactor(), focusX, focusY);
+                lastScaleFocusX = focusX;
+                lastScaleFocusY = focusY;
                 return true;
             }
         });
@@ -97,13 +132,16 @@ public class PdfActivity extends Activity {
             @Override public boolean onDown(MotionEvent e) { return true; }
             @Override public boolean onSingleTapUp(MotionEvent e) { setControlsVisible(true); scheduleControlsHide(); return true; }
             @Override public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
+                if (e1 == null || e2 == null || hadMultiplePointers) return false;
                 float dx = e2.getX() - e1.getX();
                 float dy = e2.getY() - e1.getY();
-                if (Math.abs(dx) > dp(55) && Math.abs(dx) > Math.abs(dy)) {
+                if (Math.abs(dx) > dp(55) && Math.abs(dx) > Math.abs(dy)
+                        && !gesturePannedX && !canPanX()) {
                     if (dx < 0) showPage(pageIndex + 1); else showPage(pageIndex - 1);
                     return true;
                 }
-                if (Math.abs(dy) > dp(70) && Math.abs(dy) > Math.abs(dx) && zoom <= 1.05f) {
+                if (Math.abs(dy) > dp(70) && Math.abs(dy) > Math.abs(dx)
+                        && !gesturePannedY && !canPanY()) {
                     if (dy < 0) showPage(pageIndex + 1); else showPage(pageIndex - 1);
                     return true;
                 }
@@ -111,8 +149,55 @@ public class PdfActivity extends Activity {
             }
         });
         image.setOnTouchListener((v, event) -> {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) {
+                hadMultiplePointers = false;
+                gesturePannedX = false;
+                gesturePannedY = false;
+                activePointerId = event.getPointerId(0);
+                lastTouchX = event.getX(0);
+                lastTouchY = event.getY(0);
+            } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
+                hadMultiplePointers = true;
+            }
             scaleDetector.onTouchEvent(event);
+            if (action == MotionEvent.ACTION_MOVE && event.getPointerCount() == 1
+                    && !scaleDetector.isInProgress()) {
+                int pointerIndex = event.findPointerIndex(activePointerId);
+                if (pointerIndex >= 0) {
+                    float x = event.getX(pointerIndex);
+                    float y = event.getY(pointerIndex);
+                    boolean panX = canPanX();
+                    boolean panY = canPanY();
+                    if (panX || panY) {
+                        if (panX) {
+                            if (x != lastTouchX) gesturePannedX = true;
+                            offsetX += x - lastTouchX;
+                        }
+                        if (panY) {
+                            if (y != lastTouchY) gesturePannedY = true;
+                            offsetY += y - lastTouchY;
+                        }
+                        applyImageMatrix();
+                    }
+                    lastTouchX = x;
+                    lastTouchY = y;
+                }
+            } else if (action == MotionEvent.ACTION_POINTER_UP) {
+                int liftedIndex = event.getActionIndex();
+                int remainingIndex = liftedIndex == 0 ? 1 : 0;
+                if (remainingIndex < event.getPointerCount()) {
+                    activePointerId = event.getPointerId(remainingIndex);
+                    lastTouchX = event.getX(remainingIndex);
+                    lastTouchY = event.getY(remainingIndex);
+                } else {
+                    activePointerId = MotionEvent.INVALID_POINTER_ID;
+                }
+            }
             gestureDetector.onTouchEvent(event);
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                activePointerId = MotionEvent.INVALID_POINTER_ID;
+            }
             return true;
         });
 
@@ -154,33 +239,92 @@ public class PdfActivity extends Activity {
     private void setControlsVisible(boolean visible) { controlsVisible = visible; if (controls != null) controls.setVisibility(visible ? View.VISIBLE : View.GONE); }
 
     private void setZoom(float value) {
-        zoom = Math.max(0.5f, Math.min(4f, value));
+        setZoomAt(value, image.getWidth() / 2f, image.getHeight() / 2f);
+    }
+
+    private void setZoomAt(float value, float focusX, float focusY) {
         fitWidth = false;
-        if (image != null) {
-            image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            image.setScaleX(zoom);
-            image.setScaleY(zoom);
+        if (!matrixReady) {
+            zoom = Math.max(0.5f, Math.min(4f, value));
+            return;
         }
+        Drawable drawable = image.getDrawable();
+        float widthZoom = image.getWidth() / (float) drawable.getIntrinsicWidth() / baseScale;
+        float nextZoom = Math.max(0.5f, Math.min(Math.max(4f, widthZoom), value));
+        float factor = nextZoom / zoom;
+        offsetX = focusX - (focusX - offsetX) * factor;
+        offsetY = focusY - (focusY - offsetY) * factor;
+        zoom = nextZoom;
+        imageScale = baseScale * zoom;
+        applyImageMatrix();
     }
 
     private void setFitWidth() {
         fitWidth = true;
         zoom = 1f;
-        if (image != null) {
-            image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            image.setScaleX(1f);
-            image.setScaleY(1f);
-        }
+        matrixReady = false;
+        updateImageMatrix(0, 0);
     }
 
     private void setFitPage() {
         fitWidth = false;
         zoom = 1f;
-        if (image != null) {
-            image.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            image.setScaleX(1f);
-            image.setScaleY(1f);
+        matrixReady = false;
+        updateImageMatrix(0, 0);
+    }
+
+    // Scale is relative to Fit Page. Keeping the same document point at the
+    // viewport center avoids jumps when fullscreen changes the available size.
+    private void updateImageMatrix(int oldWidth, int oldHeight) {
+        if (image == null || image.getDrawable() == null) return;
+        Drawable drawable = image.getDrawable();
+        int drawableWidth = drawable.getIntrinsicWidth();
+        int drawableHeight = drawable.getIntrinsicHeight();
+        int viewWidth = image.getWidth();
+        int viewHeight = image.getHeight();
+        if (drawableWidth <= 0 || drawableHeight <= 0 || viewWidth <= 0 || viewHeight <= 0) return;
+
+        boolean preserveCenter = matrixReady && oldWidth > 0 && oldHeight > 0;
+        float centerX = preserveCenter ? (oldWidth / 2f - offsetX) / imageScale : drawableWidth / 2f;
+        float centerY = preserveCenter ? (oldHeight / 2f - offsetY) / imageScale : drawableHeight / 2f;
+        baseScale = Math.min(viewWidth / (float) drawableWidth, viewHeight / (float) drawableHeight);
+        if (fitWidth) zoom = viewWidth / (float) drawableWidth / baseScale;
+        imageScale = baseScale * zoom;
+        if (preserveCenter) {
+            offsetX = viewWidth / 2f - centerX * imageScale;
+            offsetY = viewHeight / 2f - centerY * imageScale;
+        } else {
+            offsetX = (viewWidth - drawableWidth * imageScale) / 2f;
+            offsetY = fitWidth && drawableHeight * imageScale > viewHeight
+                    ? 0f : (viewHeight - drawableHeight * imageScale) / 2f;
         }
+        matrixReady = true;
+        applyImageMatrix();
+    }
+
+    private boolean canPanX() {
+        if (!matrixReady || image.getDrawable() == null) return false;
+        return image.getDrawable().getIntrinsicWidth() * imageScale > image.getWidth() + 0.5f;
+    }
+
+    private boolean canPanY() {
+        if (!matrixReady || image.getDrawable() == null) return false;
+        return image.getDrawable().getIntrinsicHeight() * imageScale > image.getHeight() + 0.5f;
+    }
+
+    private void applyImageMatrix() {
+        if (!matrixReady || image.getDrawable() == null) return;
+        Drawable drawable = image.getDrawable();
+        float contentWidth = drawable.getIntrinsicWidth() * imageScale;
+        float contentHeight = drawable.getIntrinsicHeight() * imageScale;
+        int viewWidth = image.getWidth();
+        int viewHeight = image.getHeight();
+        offsetX = contentWidth <= viewWidth ? (viewWidth - contentWidth) / 2f
+                : Math.max(viewWidth - contentWidth, Math.min(0f, offsetX));
+        offsetY = contentHeight <= viewHeight ? (viewHeight - contentHeight) / 2f
+                : Math.max(viewHeight - contentHeight, Math.min(0f, offsetY));
+        imageMatrix.setValues(new float[]{imageScale, 0f, offsetX, 0f, imageScale, offsetY, 0f, 0f, 1f});
+        image.setImageMatrix(imageMatrix);
     }
 
     private void toggleFullscreen() {
@@ -259,7 +403,9 @@ public class PdfActivity extends Activity {
                 bitmap = rotated;
             }
             image.setImageBitmap(bitmap);
-            if (fitWidth) setFitWidth(); else setFitPage();
+            zoom = 1f;
+            matrixReady = false;
+            updateImageMatrix(0, 0);
             pageLabel.setText((pageIndex + 1) + " / " + renderer.getPageCount());
         } catch (Exception e) {
             Toast.makeText(this, "Page render failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -274,3 +420,4 @@ public class PdfActivity extends Activity {
         super.onDestroy();
     }
 }
+

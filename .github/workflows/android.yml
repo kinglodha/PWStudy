@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main", "pwstudy-v1" ]
+    branches: [ "main", "pwstudy-v1", "pwstudy-telegram-fix" ]
   workflow_dispatch:
 
 jobs:
@@ -34,4 +34,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PWStudy-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Build side-by-side preview APK
+        run: gradle -PpwstudyPreview assembleDebug
+
+      - name: Upload side-by-side preview APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PWStudy-preview-apk
           path: app/build/outputs/apk/debug/app-debug.apk
