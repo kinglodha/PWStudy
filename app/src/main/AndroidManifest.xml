@@ -17,6 +17,7 @@
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
         <activity android:name=".SettingsActivity" android:exported="false" />
+        <activity android:name=".PdfToolbarEditorActivity" android:exported="false" />
         <activity android:name=".CustomizationActivity" android:exported="false" />
         <activity android:name=".DeviceDocumentsActivity" android:exported="false" />
         <activity android:name=".TelegramViewerActivity" android:exported="false" />
