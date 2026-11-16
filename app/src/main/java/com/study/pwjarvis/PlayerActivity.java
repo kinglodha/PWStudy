@@ -72,7 +72,8 @@ public class PlayerActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        // Keep the display awake only while actively playing video.
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         // Do not force an orientation at startup: users can rotate without a
         // forced activity restart or losing ExoPlayer state.
         videoPath = getIntent().getStringExtra("file_path");
@@ -165,6 +166,10 @@ public class PlayerActivity extends Activity {
         try {
             player = new ExoPlayer.Builder(this).build();
             player.addListener(new Player.Listener() {
+                @Override public void onIsPlayingChanged(boolean isPlaying) {
+                    if (isPlaying) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                }
                 @Override public void onPlayerError(PlaybackException error) {
                     toast("Cannot play this video: " + error.getErrorCodeName());
                 }
@@ -254,6 +259,10 @@ public class PlayerActivity extends Activity {
         if (player == null || (videoPath == null && videoUri == null)) return;
         final long positionUs = player.getCurrentPosition() * 1000L;
         toast("Saving video frame…");
+        if (work.isShutdown()) {
+            toast("Screenshot unavailable while player is closing");
+            return;
+        }
         work.execute(() -> {
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
             Bitmap bitmap = null;
@@ -263,8 +272,9 @@ public class PlayerActivity extends Activity {
                 bitmap = retriever.getFrameAtTime(positionUs,
                         MediaMetadataRetriever.OPTION_CLOSEST_SYNC);
                 if (bitmap == null) throw new Exception("Frame unavailable for this file");
-                File directory = new File(getExternalFilesDir(Environment.DIRECTORY_PICTURES),
-                        "PWStudy");
+                File picturesRoot = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+                if (picturesRoot == null) throw new Exception("App pictures storage is unavailable");
+                File directory = new File(picturesRoot, "PWStudy");
                 if (!directory.isDirectory() && !directory.mkdirs())
                     throw new Exception("Cannot create screenshot folder");
                 File destination = new File(directory,
@@ -341,6 +351,7 @@ public class PlayerActivity extends Activity {
         if (playerView != null) playerView.setPlayer(null);
         player.release();
         player = null;
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     }
 
     private void toast(String message) {
