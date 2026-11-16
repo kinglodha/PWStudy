@@ -14,6 +14,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 public class MainActivity extends Activity {
+    private LinearLayout contentRoot;
     private int dp(float value) {
         return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
     }
@@ -32,6 +33,7 @@ public class MainActivity extends Activity {
         root.setPadding(dp(20), dp(30), dp(20), dp(28));
         root.setBackgroundColor(Color.rgb(5, 7, 12));
         scroll.addView(root);
+        contentRoot = root;
 
         TextView title = new TextView(this);
         title.setText("PWSTUDY");
@@ -81,6 +83,11 @@ public class MainActivity extends Activity {
 
         setContentView(scroll);
         AppAppearance.apply(this, root);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        if (contentRoot != null) AppAppearance.apply(this, contentRoot);
     }
 
     private void addSectionTitle(LinearLayout root, String heading, String detail) {
