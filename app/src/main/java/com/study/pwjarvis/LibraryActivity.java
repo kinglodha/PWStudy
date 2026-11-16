@@ -79,9 +79,9 @@ public class LibraryActivity extends Activity {
         headerActions.setOrientation(LinearLayout.HORIZONTAL);
         headerActions.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         Button customize = new Button(this);
-        customize.setText("Style");
+        customize.setText("Settings");
         customize.setAllCaps(false);
-        customize.setOnClickListener(v -> startActivity(new Intent(this, CustomizationActivity.class)));
+        customize.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
         headerActions.addView(customize, new LinearLayout.LayoutParams(dp(104), dp(46)));
         Button sort = new Button(this);
         sort.setText("Newest");
