@@ -168,7 +168,22 @@ public class SettingsActivity extends Activity {
         TextView name = title(heading, 14, Color.WHITE);
         r.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
         Spinner spinner = new Spinner(this);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, choices);
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, choices) {
+            @Override public View getView(int position, View convertView, android.view.ViewGroup parent) {
+                TextView label = (TextView) super.getView(position, convertView, parent);
+                label.setTextColor(Color.WHITE);
+                label.setTextSize(13);
+                return label;
+            }
+            @Override public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
+                TextView label = (TextView) super.getDropDownView(position, convertView, parent);
+                label.setTextColor(Color.WHITE);
+                label.setBackgroundColor(card);
+                label.setPadding(dp(10), dp(8), dp(6), dp(8));
+                return label;
+            }
+        };
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinner.setAdapter(adapter);
         spinner.setSelection(selected);
         spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
