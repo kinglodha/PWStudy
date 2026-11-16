@@ -533,6 +533,7 @@ public class PdfActivity extends Activity {
         if (renderer == null || index < 0 || index >= renderer.getPageCount()) return;
         pageIndex = index;
         renderPage();
+        PdfReaderSettings.savePage(this, documentId, pageIndex);
     }
 
     private void renderPage() {
