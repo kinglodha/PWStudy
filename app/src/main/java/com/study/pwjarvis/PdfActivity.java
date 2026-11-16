@@ -2,6 +2,8 @@ package com.study.pwjarvis;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
+import android.text.TextUtils;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.graphics.Color;
@@ -26,6 +28,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,6 +41,11 @@ public class PdfActivity extends Activity {
     private Bitmap renderedBitmap;
     private ImageView image;
     private TextView pageLabel;
+    private TextView documentTitle;
+    private SeekBar pageSeek;
+    private LinearLayout topBar;
+    private String documentId;
+    private boolean savedFitSetting;
     private int pageIndex = 0;
     private int rotation = 0;
     private int themeMode = 0;
@@ -69,6 +77,10 @@ public class PdfActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        savedFitSetting = PdfReaderSettings.fitWidth(this);
+        fitWidth = savedFitSetting;
+        themeMode = PdfReaderSettings.theme(this);
+        updateScreenAwake();
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.rgb(12, 16, 25));
         image = new ImageView(this);
@@ -85,6 +97,28 @@ public class PdfActivity extends Activity {
                 updateImageMatrix(oldWidth, oldHeight);
             }
         });
+        topBar = new LinearLayout(this);
+        topBar.setOrientation(LinearLayout.HORIZONTAL);
+        topBar.setGravity(Gravity.CENTER_VERTICAL);
+        topBar.setPadding(dp(8), dp(3), dp(8), dp(3));
+        topBar.setBackgroundColor(Color.argb(240, 9, 15, 27));
+        addTool(topBar, "‹", v -> finish(), 0);
+        documentTitle = new TextView(this);
+        documentTitle.setText("PDF Reader");
+        documentTitle.setSingleLine(true);
+        documentTitle.setEllipsize(TextUtils.TruncateAt.END);
+        documentTitle.setGravity(Gravity.CENTER_VERTICAL);
+        documentTitle.setTextColor(Color.WHITE);
+        documentTitle.setTextSize(15);
+        documentTitle.setPadding(dp(8), 0, dp(6), 0);
+        topBar.addView(documentTitle, new LinearLayout.LayoutParams(0, dp(46), 1));
+        addTool(topBar, "⚙ Settings", v -> {
+            Intent intent = new Intent(this, SettingsActivity.class);
+            intent.putExtra("section", "pdf");
+            startActivity(intent);
+        }, 0);
+        root.addView(topBar, new FrameLayout.LayoutParams(-1, dp(54), Gravity.TOP));
+
         controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(5), dp(5), dp(5), dp(5));
@@ -111,7 +145,26 @@ public class PdfActivity extends Activity {
         navigation.addView(pageLabel, new LinearLayout.LayoutParams(0, dp(42), 1));
         addTool(navigation, "Next", v -> showPage(pageIndex + 1), 1);
         controls.addView(navigation, new LinearLayout.LayoutParams(-1, dp(44)));
-        setContentView(root); scheduleControlsHide();
+        pageSeek = new SeekBar(this);
+        pageSeek.setContentDescription("Jump to page");
+        pageSeek.setMax(0);
+        pageSeek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seek, int value, boolean fromUser) {
+                if (fromUser && renderer != null)
+                    pageLabel.setText("Page " + (value + 1) + " / " + renderer.getPageCount());
+            }
+            @Override public void onStartTrackingTouch(SeekBar seek) {
+                controlHandler.removeCallbacks(hideControlsTask);
+            }
+            @Override public void onStopTrackingTouch(SeekBar seek) {
+                if (renderer != null) showPage(seek.getProgress());
+                scheduleControlsHide();
+            }
+        });
+        controls.addView(pageSeek, new LinearLayout.LayoutParams(-1, dp(32)));
+        setContentView(root);
+        applyTheme(false);
+        scheduleControlsHide();
         scaleDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override public boolean onScaleBegin(ScaleGestureDetector detector) {
                 hadMultiplePointers = true;
@@ -132,9 +185,20 @@ public class PdfActivity extends Activity {
         });
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override public boolean onDown(MotionEvent e) { return true; }
-            @Override public boolean onSingleTapUp(MotionEvent e) { setControlsVisible(true); scheduleControlsHide(); return true; }
+            @Override public boolean onSingleTapUp(MotionEvent e) {
+                setControlsVisible(!controlsVisible);
+                scheduleControlsHide();
+                return true;
+            }
+            @Override public boolean onDoubleTap(MotionEvent e) {
+                setControlsVisible(true);
+                setZoomAt(zoom > 1.6f ? 1f : 2.5f, e.getX(), e.getY());
+                scheduleControlsHide();
+                return true;
+            }
             @Override public boolean onFling(MotionEvent e1, MotionEvent e2, float vx, float vy) {
-                if (e1 == null || e2 == null || hadMultiplePointers) return false;
+                if (!PdfReaderSettings.swipeNavigation(PdfActivity.this) || e1 == null
+                        || e2 == null || hadMultiplePointers) return false;
                 float dx = e2.getX() - e1.getX();
                 float dy = e2.getY() - e1.getY();
                 if (Math.abs(dx) > dp(55) && Math.abs(dx) > Math.abs(dy)
@@ -206,6 +270,9 @@ public class PdfActivity extends Activity {
         try {
             Uri uri = getIntent().getData();
             if (uri != null && "content".equalsIgnoreCase(uri.getScheme())) {
+                documentId = uri.toString();
+                String name = uri.getLastPathSegment();
+                documentTitle.setText(name == null ? "PDF Document" : name);
                 // SAF and Android Downloads files must be opened using their
                 // content URI, not by constructing an inaccessible disk path.
                 descriptor = getContentResolver().openFileDescriptor(uri, "r");
@@ -216,12 +283,19 @@ public class PdfActivity extends Activity {
                 if (path == null) throw new Exception("PDF path or URI missing");
                 File file = new File(path);
                 if (!file.isFile()) throw new Exception("PDF file not found");
+                documentId = file.getAbsolutePath();
+                documentTitle.setText(file.getName());
                 descriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY);
             }
             if (descriptor == null) throw new Exception("Cannot access selected PDF");
             renderer = new PdfRenderer(descriptor);
             if (renderer.getPageCount() == 0) throw new Exception("PDF contains no pages");
-            showPage(state == null ? 0 : Math.max(0, Math.min(renderer.getPageCount()-1, state.getInt("page", 0))));
+            pageSeek.setMax(renderer.getPageCount() - 1);
+            int initialPage = state == null
+                    ? (PdfReaderSettings.rememberPage(this)
+                        ? PdfReaderSettings.lastPage(this, documentId) : 0)
+                    : state.getInt("page", 0);
+            showPage(Math.max(0, Math.min(renderer.getPageCount() - 1, initialPage)));
         } catch (Exception e) {
             Toast.makeText(this, "PDF नहीं खुल पाया: " + e.getMessage(), Toast.LENGTH_LONG).show();
             finish();
@@ -250,8 +324,18 @@ public class PdfActivity extends Activity {
         parent.addView(button, params);
     }
 
-    private void scheduleControlsHide() { controlHandler.removeCallbacks(hideControlsTask); controlHandler.postDelayed(hideControlsTask, 4000); }
-    private void setControlsVisible(boolean visible) { controlsVisible = visible; if (controls != null) controls.setVisibility(visible ? View.VISIBLE : View.GONE); }
+    private void scheduleControlsHide() {
+        controlHandler.removeCallbacks(hideControlsTask);
+        int seconds = PdfReaderSettings.controlsDelay(this);
+        if (controlsVisible && seconds > 0)
+            controlHandler.postDelayed(hideControlsTask, seconds * 1000L);
+    }
+    private void setControlsVisible(boolean visible) {
+        controlsVisible = visible;
+        if (controls != null) controls.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (topBar != null) topBar.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (!visible) controlHandler.removeCallbacks(hideControlsTask);
+    }
 
     private void setZoom(float value) {
         setZoomAt(value, image.getWidth() / 2f, image.getHeight() / 2f);
@@ -272,6 +356,7 @@ public class PdfActivity extends Activity {
         zoom = nextZoom;
         imageScale = baseScale * zoom;
         applyImageMatrix();
+        updatePageLabel();
     }
 
     private void setFitWidth() {
@@ -315,6 +400,7 @@ public class PdfActivity extends Activity {
         }
         matrixReady = true;
         applyImageMatrix();
+        updatePageLabel();
     }
 
     private boolean canPanX() {
@@ -369,10 +455,15 @@ public class PdfActivity extends Activity {
 
     private void cycleTheme() {
         themeMode = (themeMode + 1) % 3;
+        PdfReaderSettings.setTheme(this, themeMode);
+        applyTheme(true);
+    }
+
+    private void applyTheme(boolean announce) {
+        if (image == null) return;
         if (themeMode == 0) {
             image.setColorFilter(null);
             image.setBackgroundColor(Color.WHITE);
-            Toast.makeText(this, "Normal theme", Toast.LENGTH_SHORT).show();
         } else if (themeMode == 1) {
             ColorMatrix sepia = new ColorMatrix(new float[]{
                     .393f,.769f,.189f,0,0,
@@ -381,7 +472,6 @@ public class PdfActivity extends Activity {
                     0,0,0,1,0});
             image.setColorFilter(new ColorMatrixColorFilter(sepia));
             image.setBackgroundColor(Color.rgb(244, 230, 200));
-            Toast.makeText(this, "Sepia theme", Toast.LENGTH_SHORT).show();
         } else {
             ColorMatrix dark = new ColorMatrix(new float[]{
                     -1,0,0,0,255,
@@ -390,14 +480,60 @@ public class PdfActivity extends Activity {
                     0,0,0,1,0});
             image.setColorFilter(new ColorMatrixColorFilter(dark));
             image.setBackgroundColor(Color.DKGRAY);
-            Toast.makeText(this, "Dark / inverted theme", Toast.LENGTH_SHORT).show();
         }
+        if (announce) {
+            Toast.makeText(this,
+                    themeMode == 0 ? "Normal theme" :
+                    themeMode == 1 ? "Sepia theme" : "Night / inverted theme",
+                    Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void updatePageLabel() {
+        if (renderer == null || pageLabel == null) return;
+        pageLabel.setText("Page " + (pageIndex + 1) + " / " + renderer.getPageCount()
+                + "  •  " + Math.round(zoom * 100f) + "%");
+    }
+
+    private void updateScreenAwake() {
+        if (PdfReaderSettings.keepAwake(this))
+            getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    }
+
+    @Override protected void onResume() {
+        super.onResume();
+        int preferredTheme = PdfReaderSettings.theme(this);
+        if (themeMode != preferredTheme) {
+            themeMode = preferredTheme;
+            applyTheme(false);
+        }
+        boolean preferredFit = PdfReaderSettings.fitWidth(this);
+        if (savedFitSetting != preferredFit) {
+            savedFitSetting = preferredFit;
+            if (renderer != null) {
+                if (preferredFit) setFitWidth();
+                else setFitPage();
+            } else fitWidth = preferredFit;
+        }
+        updateScreenAwake();
+        if (controlsVisible) {
+            setControlsVisible(true);
+            scheduleControlsHide();
+        }
+    }
+
+    @Override protected void onStop() {
+        if (renderer != null) PdfReaderSettings.savePage(this, documentId, pageIndex);
+        super.onStop();
     }
 
     private void showPage(int index) {
         if (renderer == null || index < 0 || index >= renderer.getPageCount()) return;
         pageIndex = index;
         renderPage();
+        PdfReaderSettings.savePage(this, documentId, pageIndex);
     }
 
     private void renderPage() {
@@ -434,7 +570,8 @@ public class PdfActivity extends Activity {
             zoom = 1f;
             matrixReady = false;
             updateImageMatrix(0, 0);
-            pageLabel.setText((pageIndex + 1) + " / " + renderer.getPageCount());
+            if (pageSeek != null) pageSeek.setProgress(pageIndex);
+            updatePageLabel();
         } catch (Exception e) {
             Toast.makeText(this, "Page render failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
