@@ -71,13 +71,13 @@ public class MainActivity extends Activity {
         device.setOnClickListener(v ->
                 startActivity(new Intent(this, DeviceDocumentsActivity.class)));
 
-        Button customize = makeButton("CUSTOMIZE APP",
-                "Change supported appearance settings", false);
+        Button customize = makeButton("SETTINGS",
+                "App appearance and PDF reader preferences", false);
         LinearLayout.LayoutParams customizeParams = buttonParams(dp(64));
         customizeParams.topMargin = dp(22);
         root.addView(customize, customizeParams);
         customize.setOnClickListener(v ->
-                startActivity(new Intent(this, CustomizationActivity.class)));
+                startActivity(new Intent(this, SettingsActivity.class)));
 
         setContentView(scroll);
         AppAppearance.apply(this, root);
