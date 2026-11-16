@@ -59,6 +59,9 @@ public class SettingsActivity extends Activity {
         pdfSection.setOrientation(LinearLayout.VERTICAL);
         root.addView(pdfSection);
         addHeading(pdfSection, "PDF VIEWER");
+        addAction(pdfSection, "Customize every PDF button",
+                "Drag to reorder; move between rows; change size, text, color or visibility",
+                () -> startActivity(new Intent(this, PdfToolbarEditorActivity.class)));
         addText(pdfSection, "These preferences are saved and apply to PDFs opened from Telegram, the library or device.", 12, 0xFFADB8C8);
 
         addPicker(pdfSection, "Reading theme", new String[]{"Normal", "Sepia", "Night / inverted"},

@@ -22,6 +22,9 @@ import android.view.View;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
+import java.util.List;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.graphics.drawable.GradientDrawable;
 import android.widget.Button;
@@ -44,6 +47,7 @@ public class PdfActivity extends Activity {
     private TextView documentTitle;
     private SeekBar pageSeek;
     private LinearLayout topBar;
+    private HorizontalScrollView topScroll;
     private String documentId;
     private boolean savedFitSetting;
     private int pageIndex = 0;
@@ -97,12 +101,17 @@ public class PdfActivity extends Activity {
                 updateImageMatrix(oldWidth, oldHeight);
             }
         });
+        topScroll = new HorizontalScrollView(this);
+        topScroll.setHorizontalScrollBarEnabled(false);
+        topScroll.setFillViewport(true);
+        topScroll.setBackgroundColor(Color.argb(240, 9, 15, 27));
         topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setPadding(dp(8), dp(3), dp(8), dp(3));
-        topBar.setBackgroundColor(Color.argb(240, 9, 15, 27));
-        addTool(topBar, "‹", v -> finish(), 0);
+        topBar.setPadding(dp(7), dp(3), dp(7), dp(3));
+        topScroll.addView(topBar, new FrameLayout.LayoutParams(-2, dp(54)));
+        root.addView(topScroll, new FrameLayout.LayoutParams(-1, dp(54), Gravity.TOP));
+
         documentTitle = new TextView(this);
         documentTitle.setText("PDF Reader");
         documentTitle.setSingleLine(true);
@@ -110,41 +119,23 @@ public class PdfActivity extends Activity {
         documentTitle.setGravity(Gravity.CENTER_VERTICAL);
         documentTitle.setTextColor(Color.WHITE);
         documentTitle.setTextSize(15);
+        documentTitle.setMinWidth(dp(115));
         documentTitle.setPadding(dp(8), 0, dp(6), 0);
-        topBar.addView(documentTitle, new LinearLayout.LayoutParams(0, dp(46), 1));
-        addTool(topBar, "⚙ Settings", v -> {
-            Intent intent = new Intent(this, SettingsActivity.class);
-            intent.putExtra("section", "pdf");
-            startActivity(intent);
-        }, 0);
-        root.addView(topBar, new FrameLayout.LayoutParams(-1, dp(54), Gravity.TOP));
+        documentTitle.setOnLongClickListener(v -> {
+            startActivity(new Intent(this, PdfToolbarEditorActivity.class));
+            return true;
+        });
 
         controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(5), dp(5), dp(5), dp(5));
         controls.setBackgroundColor(Color.argb(225, 10, 13, 20));
-        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
-        root.addView(controls, cp);
-        LinearLayout tools = new LinearLayout(this); tools.setGravity(Gravity.CENTER);
-        addTool(tools, "−", v -> setZoom(zoom / 1.25f), 0);
-        addTool(tools, "100%", v -> setZoom(1f), 0);
-        addTool(tools, "+", v -> setZoom(zoom * 1.25f), 0);
-        addTool(tools, "Fit Width", v -> setFitWidth(), 1);
-        addTool(tools, "Fit Page", v -> setFitPage(), 1);
-        controls.addView(tools, new LinearLayout.LayoutParams(-1, dp(44)));
-        LinearLayout row2 = new LinearLayout(this); row2.setGravity(Gravity.CENTER);
-        addTool(row2, "Rotate", v -> { rotation = (rotation + 90) % 360; renderPage(); }, 1);
-        addTool(row2, "Go to", v -> showJumpDialog(), 1);
-        addTool(row2, "Full", v -> toggleFullscreen(), 1);
-        addTool(row2, "Theme", v -> cycleTheme(), 1);
-        controls.addView(row2, new LinearLayout.LayoutParams(-1, dp(44)));
-        LinearLayout navigation = new LinearLayout(this); navigation.setGravity(Gravity.CENTER);
-        addTool(navigation, "Previous", v -> showPage(pageIndex - 1), 1);
-        pageLabel = new TextView(this); pageLabel.setTextColor(Color.WHITE);
-        pageLabel.setGravity(Gravity.CENTER); pageLabel.setTextSize(14);
-        navigation.addView(pageLabel, new LinearLayout.LayoutParams(0, dp(42), 1));
-        addTool(navigation, "Next", v -> showPage(pageIndex + 1), 1);
-        controls.addView(navigation, new LinearLayout.LayoutParams(-1, dp(44)));
+        root.addView(controls, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+
+        pageLabel = new TextView(this);
+        pageLabel.setTextColor(Color.WHITE);
+        pageLabel.setGravity(Gravity.CENTER);
+        pageLabel.setTextSize(14);
         pageSeek = new SeekBar(this);
         pageSeek.setContentDescription("Jump to page");
         pageSeek.setMax(0);
@@ -161,7 +152,7 @@ public class PdfActivity extends Activity {
                 scheduleControlsHide();
             }
         });
-        controls.addView(pageSeek, new LinearLayout.LayoutParams(-1, dp(32)));
+        rebuildToolbars();
         setContentView(root);
         applyTheme(false);
         scheduleControlsHide();
@@ -302,26 +293,126 @@ public class PdfActivity extends Activity {
         }
     }
 
-    private void addTool(LinearLayout parent, String label, View.OnClickListener listener, int weight) {
+    /** Rebuild the visible toolbar using saved slot, order, size, color and label. */
+    private void rebuildToolbars() {
+        if (topBar == null || controls == null || pageSeek == null) return;
+        topBar.removeAllViews();
+        controls.removeAllViews();
+        List<String> topItems = PdfToolbarLayout.items(this, 0, false);
+        boolean addedTitle = false;
+        for (String id : topItems) {
+            if (!addedTitle && "settings".equals(id)) {
+                addDocumentTitle();
+                addedTitle = true;
+            }
+            addConfiguredItem(topBar, id, true, topItems.size());
+            if (!addedTitle && "back".equals(id)) {
+                addDocumentTitle();
+                addedTitle = true;
+            }
+        }
+        if (!addedTitle) addDocumentTitle();
+
+        for (int slot = 1; slot <= 4; slot++) {
+            List<String> items = PdfToolbarLayout.items(this, slot, false);
+            if (items.isEmpty()) continue;
+            HorizontalScrollView scroller = new HorizontalScrollView(this);
+            scroller.setFillViewport(true);
+            scroller.setHorizontalScrollBarEnabled(false);
+            LinearLayout row = new LinearLayout(this);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setMinimumWidth(getResources().getDisplayMetrics().widthPixels - dp(10));
+            for (String id : items) addConfiguredItem(row, id, false, items.size());
+            scroller.addView(row, new FrameLayout.LayoutParams(-2, -2));
+            LinearLayout.LayoutParams outer = new LinearLayout.LayoutParams(-1, -2);
+            outer.bottomMargin = dp(2);
+            controls.addView(scroller, outer);
+        }
+        updatePageLabel();
+    }
+
+    private void addDocumentTitle() {
+        if (documentTitle.getParent() instanceof ViewGroup)
+            ((ViewGroup) documentTitle.getParent()).removeView(documentTitle);
+        topBar.addView(documentTitle, new LinearLayout.LayoutParams(0, dp(46), 1f));
+    }
+
+    private void addConfiguredItem(LinearLayout row, String id, boolean top, int count) {
+        if ("page_indicator".equals(id)) {
+            if (pageLabel.getParent() instanceof ViewGroup)
+                ((ViewGroup) pageLabel.getParent()).removeView(pageLabel);
+            int height = itemHeight(id);
+            pageLabel.setTextSize(PdfToolbarLayout.size(this, id) == 2 ? 16 : 14);
+            LinearLayout.LayoutParams params = top
+                    ? new LinearLayout.LayoutParams(dp(145), height)
+                    : new LinearLayout.LayoutParams(0, height, 1f);
+            row.addView(pageLabel, params);
+            return;
+        }
+        if ("page_slider".equals(id)) {
+            if (pageSeek.getParent() instanceof ViewGroup)
+                ((ViewGroup) pageSeek.getParent()).removeView(pageSeek);
+            LinearLayout.LayoutParams params = top
+                    ? new LinearLayout.LayoutParams(dp(150), itemHeight(id))
+                    : new LinearLayout.LayoutParams(0, itemHeight(id), 1f);
+            row.addView(pageSeek, params);
+            return;
+        }
+
         Button button = new Button(this);
-        button.setText(label);
-        button.setTextSize(12);
+        button.setText(PdfToolbarLayout.label(this, id));
+        button.setContentDescription(PdfToolbarLayout.name(id));
+        button.setTextSize(PdfToolbarLayout.size(this, id) == 0 ? 11
+                : PdfToolbarLayout.size(this, id) == 2 ? 15 : 12);
         button.setTextColor(Color.WHITE);
         button.setAllCaps(false);
-        button.setMinWidth(0);
-        button.setPadding(dp(4), 0, dp(4), 0);
+        button.setMinWidth(dp(46));
+        button.setPadding(dp(5), 0, dp(5), 0);
         GradientDrawable outline = new GradientDrawable();
         outline.setColor(Color.TRANSPARENT);
-        outline.setCornerRadius(dp(10));
-        outline.setStroke(dp(1), Color.rgb(85, 130, 180));
+        outline.setCornerRadius(dp(PdfToolbarLayout.size(this, id) == 2 ? 14 : 10));
+        outline.setStroke(dp(1), PdfToolbarLayout.accent(this, id));
         button.setBackground(outline);
+        button.setOnClickListener(clickAction(id));
         button.setHapticFeedbackEnabled(false);
-        button.setOnClickListener(listener);
-        LinearLayout.LayoutParams params = weight == 1
-                ? new LinearLayout.LayoutParams(0, dp(42), 1)
-                : new LinearLayout.LayoutParams(-2, dp(42));
-        params.setMargins(dp(2), 0, dp(2), 0);
-        parent.addView(button, params);
+        // Every control can jump directly to its editor by long-pressing it.
+        button.setOnLongClickListener(v -> {
+            startActivity(new Intent(this, PdfToolbarEditorActivity.class));
+            return true;
+        });
+        LinearLayout.LayoutParams params = top
+                ? new LinearLayout.LayoutParams(-2, itemHeight(id))
+                : new LinearLayout.LayoutParams(0, itemHeight(id), 1f);
+        params.setMargins(dp(2), dp(1), dp(2), dp(1));
+        row.addView(button, params);
+    }
+
+    private int itemHeight(String id) {
+        int size = PdfToolbarLayout.size(this, id);
+        return dp(size == 0 ? 36 : size == 2 ? 50 : 42);
+    }
+
+    private View.OnClickListener clickAction(String id) {
+        switch (id) {
+            case "back": return v -> finish();
+            case "settings": return v -> {
+                Intent intent = new Intent(this, SettingsActivity.class);
+                intent.putExtra("section", "pdf");
+                startActivity(intent);
+            };
+            case "zoom_out": return v -> setZoom(zoom / 1.25f);
+            case "zoom_reset": return v -> setZoom(1f);
+            case "zoom_in": return v -> setZoom(zoom * 1.25f);
+            case "fit_width": return v -> setFitWidth();
+            case "fit_page": return v -> setFitPage();
+            case "rotate": return v -> { rotation = (rotation + 90) % 360; renderPage(); };
+            case "go_to": return v -> showJumpDialog();
+            case "full": return v -> toggleFullscreen();
+            case "theme": return v -> cycleTheme();
+            case "previous": return v -> showPage(pageIndex - 1);
+            case "next": return v -> showPage(pageIndex + 1);
+            default: return v -> {};
+        }
     }
 
     private void scheduleControlsHide() {
@@ -333,7 +424,7 @@ public class PdfActivity extends Activity {
     private void setControlsVisible(boolean visible) {
         controlsVisible = visible;
         if (controls != null) controls.setVisibility(visible ? View.VISIBLE : View.GONE);
-        if (topBar != null) topBar.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (topScroll != null) topScroll.setVisibility(visible ? View.VISIBLE : View.GONE);
         if (!visible) controlHandler.removeCallbacks(hideControlsTask);
     }
 
@@ -518,6 +609,7 @@ public class PdfActivity extends Activity {
             } else fitWidth = preferredFit;
         }
         updateScreenAwake();
+        rebuildToolbars();
         if (controlsVisible) {
             setControlsVisible(true);
             scheduleControlsHide();
