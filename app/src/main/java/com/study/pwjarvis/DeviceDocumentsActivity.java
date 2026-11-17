@@ -118,7 +118,9 @@ public class DeviceDocumentsActivity extends Activity {
         setContentView(root);
         String saved=getPreferences(MODE_PRIVATE).getString("tree",null);
         if(saved!=null){rootFolder=DocumentFile.fromTreeUri(this,Uri.parse(saved));currentFolder=rootFolder;}
-        if(rootFolder==null||!rootFolder.canRead())pickFolder(); else refresh();
+        if(rootFolder==null||!rootFolder.canRead()){
+            location.setText("Tap Open PDF to select a PDF from Downloads or any accessible folder. Use PDF folder to browse a chosen folder.");
+        }else refresh();
     }
 
     @Override protected void onResume(){
