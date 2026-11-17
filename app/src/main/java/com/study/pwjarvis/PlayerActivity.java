@@ -3,6 +3,7 @@ package com.study.pwjarvis;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
@@ -39,6 +40,9 @@ import java.util.concurrent.Executors;
 
 /** Local video playback; the Activity owns the player, never a WebView. */
 public class PlayerActivity extends Activity {
+    private static final String PREFS = "pwstudy_player_preferences";
+    private static final String PREF_SPEED = "playback_speed";
+    private static final String PREF_NIGHT = "night_overlay";
     private static final String KEY_POSITION = "position";
     private static final String KEY_PLAY = "play";
     private static final String KEY_SPEED = "speed";
@@ -83,6 +87,9 @@ public class PlayerActivity extends Activity {
             finish();
             return;
         }
+        SharedPreferences preferences = getSharedPreferences(PREFS, MODE_PRIVATE);
+        speed = Math.max(0.5f, Math.min(2f, preferences.getFloat(PREF_SPEED, 1f)));
+        night = preferences.getBoolean(PREF_NIGHT, false);
         if (state != null) {
             resumePosition = state.getLong(KEY_POSITION, 0L);
             resumePlay = state.getBoolean(KEY_PLAY, true);
@@ -102,7 +109,7 @@ public class PlayerActivity extends Activity {
 
         nightShade = new View(this);
         nightShade.setBackgroundColor(Color.BLACK);
-        nightShade.setAlpha(0f);
+        nightShade.setAlpha(night ? .33f : 0f);
         nightShade.setClickable(false);
         root.addView(nightShade, new FrameLayout.LayoutParams(-1, -1));
 
@@ -195,6 +202,8 @@ public class PlayerActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Playback speed")
                 .setSingleChoiceItems(labels, -1, (dialog, which) -> {
                     speed = values[which];
+                    getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                            .putFloat(PREF_SPEED, speed).apply();
                     if (player != null) player.setPlaybackSpeed(speed);
                     dialog.dismiss();
                 }).setNegativeButton("Cancel", null).show();
@@ -227,6 +236,8 @@ public class PlayerActivity extends Activity {
     private void toggleNight() {
         night = !night;
         nightShade.setAlpha(night ? .33f : 0f);
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .putBoolean(PREF_NIGHT, night).apply();
         toast(night ? "Night mode on" : "Night mode off");
     }
 
@@ -258,12 +269,12 @@ public class PlayerActivity extends Activity {
     private void saveScreenshot() {
         if (player == null || (videoPath == null && videoUri == null)) return;
         final long positionUs = player.getCurrentPosition() * 1000L;
-        toast("Saving video frame…");
         if (work.isShutdown()) {
             toast("Screenshot unavailable while player is closing");
             return;
         }
-        work.execute(() -> {
+        try {
+            work.execute(() -> {
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
             Bitmap bitmap = null;
             try {
@@ -290,7 +301,11 @@ public class PlayerActivity extends Activity {
                 if (bitmap != null) bitmap.recycle();
                 try { retriever.release(); } catch (Exception ignored) {}
             }
-        });
+            });
+            toast("Saving video frame…");
+        } catch (java.util.concurrent.RejectedExecutionException ignored) {
+            toast("Screenshot unavailable while player is closing");
+        }
     }
 
     private void setLocked(boolean value) {
