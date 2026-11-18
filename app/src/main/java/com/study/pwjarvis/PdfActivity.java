@@ -411,7 +411,27 @@ public class PdfActivity extends Activity {
             case "theme": return v -> cycleTheme();
             case "previous": return v -> showPage(pageIndex - 1);
             case "next": return v -> showPage(pageIndex + 1);
+            case "study_tools": return v -> openStudyTools();
             default: return v -> {};
+        }
+    }
+
+    /** Open offline document tools without changing the existing PDF reader state. */
+    private void openStudyTools() {
+        if (documentId == null || renderer == null) return;
+        Intent tools = new Intent(this, PdfStudyToolsActivity.class);
+        tools.putExtra("document_id", documentId);
+        tools.putExtra("page_index", pageIndex);
+        tools.putExtra("page_count", renderer.getPageCount());
+        startActivityForResult(tools, 710);
+    }
+
+    @Override @SuppressWarnings("deprecation")
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == 710 && resultCode == RESULT_OK && data != null && renderer != null) {
+            int target = data.getIntExtra("go_to_page", -1);
+            if (target >= 0 && target < renderer.getPageCount()) showPage(target);
         }
     }
 

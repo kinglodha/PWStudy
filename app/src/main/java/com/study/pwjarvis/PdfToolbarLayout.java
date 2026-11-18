@@ -15,7 +15,7 @@ public final class PdfToolbarLayout {
     public static final String[] IDS = {
             "back", "settings", "zoom_out", "zoom_reset", "zoom_in",
             "fit_width", "fit_page", "rotate", "go_to", "full", "theme",
-            "previous", "page_indicator", "next", "page_slider"
+            "previous", "page_indicator", "next", "page_slider", "study_tools"
     };
     public static final String[] PLACES = {
             "Top bar", "Bottom row 1", "Bottom row 2", "Bottom row 3", "Bottom row 4"
@@ -43,6 +43,7 @@ public final class PdfToolbarLayout {
             case "page_indicator": return "Page indicator";
             case "next": return "Next";
             case "page_slider": return "Page slider";
+            case "study_tools": return "PDF Tools";
             default: return id;
         }
     }
@@ -52,6 +53,7 @@ public final class PdfToolbarLayout {
         if ("zoom_in".equals(id)) return "Zoom in";
         if ("zoom_reset".equals(id)) return "Reset zoom";
         if ("full".equals(id)) return "Fullscreen";
+        if ("study_tools".equals(id)) return "Advanced PDF tools";
         return defaultLabel(id);
     }
     private static int indexOf(String id) {
@@ -59,6 +61,7 @@ public final class PdfToolbarLayout {
         return -1;
     }
     private static int defaultSlot(String id) {
+        if ("study_tools".equals(id)) return 2;
         int index = indexOf(id);
         if (index <= 1) return 0;
         if (index <= 6) return 1;
