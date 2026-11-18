@@ -39,6 +39,8 @@ public class PdfActivity extends Activity {
     private ImageView image;
     private TextView pageLabel;
     private int pageIndex = 0;
+    private String readingProgressKey;
+    private static final String READING_PROGRESS = "pwstudy_pdf_reading_progress";
     private int rotation = 0;
     private int themeMode = 0;
     private float zoom = 1f;
@@ -101,6 +103,7 @@ public class PdfActivity extends Activity {
         LinearLayout row2 = new LinearLayout(this); row2.setGravity(Gravity.CENTER);
         addTool(row2, "Rotate", v -> { rotation = (rotation + 90) % 360; renderPage(); }, 1);
         addTool(row2, "Go to", v -> showJumpDialog(), 1);
+        addTool(row2, "Start", v -> showPage(0), 1);
         addTool(row2, "Full", v -> toggleFullscreen(), 1);
         addTool(row2, "Theme", v -> cycleTheme(), 1);
         controls.addView(row2, new LinearLayout.LayoutParams(-1, dp(44)));
@@ -221,7 +224,14 @@ public class PdfActivity extends Activity {
             if (descriptor == null) throw new Exception("Cannot access selected PDF");
             renderer = new PdfRenderer(descriptor);
             if (renderer.getPageCount() == 0) throw new Exception("PDF contains no pages");
-            showPage(state == null ? 0 : Math.max(0, Math.min(renderer.getPageCount()-1, state.getInt("page", 0))));
+            String documentId = uri != null ? uri.toString() : getIntent().getStringExtra("file_path");
+            if (documentId != null) {
+                readingProgressKey = documentId.length() + "_" + Integer.toHexString(documentId.hashCode());
+            }
+            int rememberedPage = readingProgressKey == null ? 0
+                    : getSharedPreferences(READING_PROGRESS, MODE_PRIVATE).getInt(readingProgressKey, 0);
+            int requestedPage = state == null ? rememberedPage : state.getInt("page", rememberedPage);
+            showPage(Math.max(0, Math.min(renderer.getPageCount() - 1, requestedPage)));
         } catch (Exception e) {
             Toast.makeText(this, "PDF नहीं खुल पाया: " + e.getMessage(), Toast.LENGTH_LONG).show();
             finish();
@@ -398,6 +408,7 @@ public class PdfActivity extends Activity {
         if (renderer == null || index < 0 || index >= renderer.getPageCount()) return;
         pageIndex = index;
         renderPage();
+        saveReadingProgress();
     }
 
     private void renderPage() {
@@ -438,6 +449,18 @@ public class PdfActivity extends Activity {
         } catch (Exception e) {
             Toast.makeText(this, "Page render failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void saveReadingProgress() {
+        if (readingProgressKey != null && renderer != null) {
+            getSharedPreferences(READING_PROGRESS, MODE_PRIVATE).edit()
+                    .putInt(readingProgressKey, pageIndex).apply();
+        }
+    }
+
+    @Override protected void onPause() {
+        saveReadingProgress();
+        super.onPause();
     }
 
     @Override protected void onSaveInstanceState(Bundle out) {
