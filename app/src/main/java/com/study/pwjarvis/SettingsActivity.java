@@ -59,6 +59,11 @@ public class SettingsActivity extends Activity {
         addAction(root, "Offline library", "Manage saved PDFs and videos",
                 () -> startActivity(new Intent(this, LibraryActivity.class)));
 
+        addHeading(root, "ADS & PRIVACY");
+        addText(root, "Test ads only. Full-screen ads are limited to four per day and 60 minutes of active use, and appear only after returning from PDF or video study.", 12, 0xFFADB8C8);
+        addAction(root, "Ad privacy choices", "Open your consent preferences when required",
+                () -> StudyAdManager.get().openPrivacyOptions(this));
+
         LinearLayout pdfSection = new LinearLayout(this);
         pdfSection.setOrientation(LinearLayout.VERTICAL);
         root.addView(pdfSection);
