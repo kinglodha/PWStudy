@@ -25,6 +25,7 @@ import java.util.List;
 
 public class DeviceDocumentsActivity extends Activity {
     private static final int PICK_FOLDER=4102;
+    private static final int PICK_PDF=4103;
     private DocumentFile rootFolder,currentFolder;
     private final List<DocumentFile> visible=new ArrayList<>();
     private final List<String> labels=new ArrayList<>();
@@ -44,7 +45,7 @@ public class DeviceDocumentsActivity extends Activity {
         root.setBackgroundColor(Color.rgb(12,16,25));
 
         TextView title=new TextView(this);
-        title.setText("DEVICE DOCUMENTS");
+        title.setText("PDFs  •  Device & Downloads");
         title.setTextColor(Color.WHITE);
         title.setTextSize(19);
         title.setTypeface(null,1);
@@ -55,17 +56,24 @@ public class DeviceDocumentsActivity extends Activity {
         topActions.setOrientation(LinearLayout.HORIZONTAL);
         topActions.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);
         Button customize=new Button(this);
-        customize.setText("Style");
+        customize.setText("Settings");
         customize.setAllCaps(false);
-        customize.setOnClickListener(v->startActivity(new Intent(this,CustomizationActivity.class)));
+        customize.setOnClickListener(v->startActivity(new Intent(this,SettingsActivity.class).putExtra("section","pdf")));
         topActions.addView(customize,new LinearLayout.LayoutParams(0,dp(46),1));
         Button choose=new Button(this);
-        choose.setText("Choose folder");
+        choose.setText("PDF folder");
         choose.setAllCaps(false);
         LinearLayout.LayoutParams chooseParams=new LinearLayout.LayoutParams(0,dp(46),1);
         chooseParams.leftMargin=dp(8);
         topActions.addView(choose,chooseParams);
         choose.setOnClickListener(v->pickFolder());
+        Button open=new Button(this);
+        open.setText("Open PDF");
+        open.setAllCaps(false);
+        LinearLayout.LayoutParams openParams=new LinearLayout.LayoutParams(0,dp(46),1);
+        openParams.leftMargin=dp(6);
+        topActions.addView(open,openParams);
+        open.setOnClickListener(v->pickPdf());
         LinearLayout.LayoutParams topActionsParams=new LinearLayout.LayoutParams(-1,dp(50));
         topActionsParams.bottomMargin=dp(4);
         root.addView(topActions,topActionsParams);
@@ -74,7 +82,7 @@ public class DeviceDocumentsActivity extends Activity {
         location.setPadding(dp(4),dp(8),dp(4),dp(8)); root.addView(location);
 
         search=new EditText(this); search.setSingleLine(true);
-        search.setHint("Search in this folder"); search.setTextColor(Color.WHITE);
+        search.setHint("Search PDF files in this folder"); search.setTextColor(Color.WHITE);
         search.setHintTextColor(Color.GRAY);
         search.addTextChangedListener(new android.text.TextWatcher(){
             public void beforeTextChanged(CharSequence s,int st,int c,int a){}
@@ -110,13 +118,23 @@ public class DeviceDocumentsActivity extends Activity {
         setContentView(root);
         String saved=getPreferences(MODE_PRIVATE).getString("tree",null);
         if(saved!=null){rootFolder=DocumentFile.fromTreeUri(this,Uri.parse(saved));currentFolder=rootFolder;}
-        if(rootFolder==null||!rootFolder.canRead())pickFolder(); else refresh();
+        if(rootFolder==null||!rootFolder.canRead()){
+            location.setText("Tap Open PDF to select a PDF from Downloads or any accessible folder. Use PDF folder to browse a chosen folder.");
+        }else refresh();
     }
 
     @Override protected void onResume(){
         super.onResume();
         android.view.ViewGroup content=findViewById(android.R.id.content);
         if(content.getChildCount()>0)AppAppearance.apply(this,content.getChildAt(0));
+    }
+
+    private void pickPdf(){
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/pdf");
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        startActivityForResult(intent,PICK_PDF);
     }
 
     private void pickFolder(){
@@ -127,6 +145,17 @@ public class DeviceDocumentsActivity extends Activity {
 
     @Override protected void onActivityResult(int request,int result,Intent data){
         super.onActivityResult(request,result,data);
+        if(request==PICK_PDF&&result==RESULT_OK&&data!=null&&data.getData()!=null){
+            Uri pdf=data.getData();
+            try{
+                int flags=data.getFlags()&Intent.FLAG_GRANT_READ_URI_PERMISSION;
+                if(flags!=0)getContentResolver().takePersistableUriPermission(pdf,flags);
+            }catch(SecurityException ignored){}
+            Intent read=new Intent(this,PdfActivity.class);
+            read.setData(pdf);
+            read.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(read);
+        }
         if(request==PICK_FOLDER&&result==RESULT_OK&&data!=null){
             Uri uri=data.getData();
             try{
@@ -156,12 +185,13 @@ public class DeviceDocumentsActivity extends Activity {
         });
         for(DocumentFile f:children){
             String name=f.getName()==null?"Unnamed":f.getName();
+            if(!f.isDirectory()&&!name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf"))continue;
             if(!q.isEmpty()&&!name.toLowerCase(java.util.Locale.ROOT).contains(q))continue;
             visible.add(f);
             labels.add((f.isDirectory()?"📁  ":"📄  ")+name+(f.isDirectory()?"/":"   •   "+size(f.length())));
         }
         adapter.notifyDataSetChanged();
-        location.setText("Folder: "+(currentFolder.getName()==null?"Selected device folder":currentFolder.getName())+"   •   "+visible.size()+" items");
+        location.setText("PDFs in: "+(currentFolder.getName()==null?"Selected device folder":currentFolder.getName())+"   •   "+visible.size()+" PDFs and folders");
     }
 
     private String size(long n){

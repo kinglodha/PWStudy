@@ -50,8 +50,12 @@ public class SettingsActivity extends Activity {
         addText(root, "Make PWStudy comfortable for long study sessions.", 13, 0xFFADB8C8);
 
         addHeading(root, "APP");
+        addAction(root, "Customize Home", "Show or hide cards, grid layout, recent PDFs and quick tools",
+                () -> startActivity(new Intent(this, HomeCustomizationActivity.class)));
         addAction(root, "Appearance & colours", "Background image, text and accent colours",
                 () -> startActivity(new Intent(this, CustomizationActivity.class)));
+        addAction(root, "PDFs on this device", "Open files from Downloads and folders with the built-in viewer",
+                () -> startActivity(new Intent(this, DeviceDocumentsActivity.class)));
         addAction(root, "Offline library", "Manage saved PDFs and videos",
                 () -> startActivity(new Intent(this, LibraryActivity.class)));
 
@@ -60,6 +64,8 @@ public class SettingsActivity extends Activity {
         root.addView(pdfSection);
         addHeading(pdfSection, "PDF VIEWER");
         addText(pdfSection, "In an open PDF, tap PDF Tools for offline search, bookmarks, notes, read-aloud, page extraction and merge.", 12, 0xFFADB8C8);
+        addAction(pdfSection, "Open PDFs", "Pick a PDF to read and access its advanced tools",
+                () -> startActivity(new Intent(this, DeviceDocumentsActivity.class)));
         addAction(pdfSection, "Customize every PDF button",
                 "Drag to reorder; move between rows; change size, text, color or visibility",
                 () -> startActivity(new Intent(this, PdfToolbarEditorActivity.class)));
