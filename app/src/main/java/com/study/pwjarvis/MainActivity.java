@@ -11,7 +11,6 @@ import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -47,25 +46,12 @@ public class MainActivity extends Activity {
         super.onCreate(state);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
         renderHome();
-        StudyAdManager.get().initialize(this);
     }
 
     @Override protected void onResume() {
         super.onResume();
         // Re-render preferences after returning from Settings or Customize Home.
         renderHome();
-        StudyAdManager.get().onHomeResumed(this,
-                ((PWStudyApplication) getApplication()).consumeStudyBreak());
-    }
-
-    @Override protected void onPause() {
-        StudyAdManager.get().onHomePaused();
-        super.onPause();
-    }
-
-    @Override protected void onDestroy() {
-        StudyAdManager.get().onHomeDestroyed(this);
-        super.onDestroy();
     }
 
     private void renderHome() {
@@ -85,10 +71,6 @@ public class MainActivity extends Activity {
         addHero(content);
         if (HomePreferences.get(this, HomePreferences.RECENT, true)) addRecentPdfs(content);
         if (HomePreferences.get(this, HomePreferences.TOOLS, true) || toolsFromTab) addMoreTools(content);
-        // Home-only banner: reserves its own space above bottom navigation.
-        FrameLayout adBannerSlot = new FrameLayout(this);
-        frame.addView(adBannerSlot, new LinearLayout.LayoutParams(-1, -2));
-        StudyAdManager.get().attachHomeBanner(this, adBannerSlot);
         addBottomNavigation(frame);
 
         setContentView(frame);

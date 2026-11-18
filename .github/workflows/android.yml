@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main", "pwstudy-v1", "pwstudy-telegram-fix", "pwstudy-player-pdf-fix", "pwstudy-pdf-settings-2026-11-16", "pwstudy-pdf-toolbar-custom-2026-11-16", "pwstudy-advanced-pdf-tools-2026-11-16", "pwstudy-pdfs-home-customize-2026-11-17", "pwstudy-admob-test-2026-11-18", "pwstudy-telegram-landscape-2026-11-18" ]
+    branches: [ "main", "pwstudy-v1", "pwstudy-telegram-fix", "pwstudy-player-pdf-fix", "pwstudy-pdf-settings-2026-11-16", "pwstudy-pdf-toolbar-custom-2026-11-16", "pwstudy-advanced-pdf-tools-2026-11-16", "pwstudy-pdfs-home-customize-2026-11-17", "pwstudy-admob-test-2026-11-18", "pwstudy-telegram-landscape-2026-11-18", "pwstudy-adfree-2026-11-18" ]
   workflow_dispatch:
 
 jobs:
@@ -26,6 +26,13 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
+
+      - name: Prevent ad SDK regressions
+        run: |
+          if grep -R -n -E 'com\.google\.android\.gms\.ads|play-services-ads|user-messaging-platform|StudyAdManager|StudyAdClock' app/src/main app/build.gradle; then
+            echo 'Ad code or SDK detected in the ad-free build'
+            exit 1
+          fi
 
       - name: Build debug APK
         run: gradle assembleDebug

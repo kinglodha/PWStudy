@@ -22,7 +22,4 @@ dependencies {
     implementation 'androidx.documentfile:documentfile:1.0.1'
     implementation 'androidx.media3:media3-exoplayer:1.4.1'
     implementation 'androidx.media3:media3-ui:1.4.1'
-    // SDK 25.4 retains PWStudy's minSdk 23 (25.5+ needs 24).
-    implementation 'com.google.android.gms:play-services-ads:25.4.0'
-    implementation 'com.google.android.ump:user-messaging-platform:4.0.0'
 }
