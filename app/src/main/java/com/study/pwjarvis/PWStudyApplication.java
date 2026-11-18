@@ -11,6 +11,7 @@ import android.os.Bundle;
 public final class PWStudyApplication extends Application implements Application.ActivityLifecycleCallbacks {
     private StudyAdClock adClock;
     private int startedActivities;
+    private int startedStudyActivities;
     private boolean returnedFromStudy;
 
     @Override public void onCreate() {
@@ -21,6 +22,8 @@ public final class PWStudyApplication extends Application implements Application
 
     public StudyAdClock adClock() { return adClock; }
 
+    public boolean hasOpenStudyScreen() { return startedStudyActivities > 0; }
+
     public boolean consumeStudyBreak() {
         boolean wasStudying = returnedFromStudy;
         returnedFromStudy = false;
@@ -30,11 +33,16 @@ public final class PWStudyApplication extends Application implements Application
     @Override public void onActivityStarted(Activity activity) {
         if (startedActivities++ == 0) adClock.onAppForeground();
         if (activity instanceof PdfActivity || activity instanceof PlayerActivity) {
+            startedStudyActivities++;
             returnedFromStudy = true;
         }
     }
 
     @Override public void onActivityStopped(Activity activity) {
+        if (activity instanceof PdfActivity || activity instanceof PlayerActivity) {
+            startedStudyActivities = Math.max(0, startedStudyActivities - 1);
+            if (startedStudyActivities == 0) StudyAdManager.get().onStudyScreenStopped();
+        }
         startedActivities = Math.max(0, startedActivities - 1);
         if (startedActivities == 0) adClock.onAppBackground();
     }
