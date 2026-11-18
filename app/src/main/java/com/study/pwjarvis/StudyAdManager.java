@@ -46,6 +46,8 @@ public final class StudyAdManager {
     private boolean adsReady;
     private boolean interstitialLoading;
     private boolean interstitialShowing;
+    private boolean homeResumed;
+    private boolean awaitingStudyStop;
     private ConsentInformation consent;
     private InterstitialAd interstitial;
     private long interstitialLoadedAt;
@@ -125,11 +127,15 @@ public final class StudyAdManager {
     }
 
     public void onHomePaused() {
+        homeResumed = false;
+        awaitingStudyStop = false;
         if (banner != null) banner.pause();
     }
 
     public void onHomeDestroyed(MainActivity activity) {
         if (home.get() == activity) {
+            homeResumed = false;
+            awaitingStudyStop = false;
             destroyBanner();
             home.clear();
             bannerSlot.clear();
@@ -138,13 +144,27 @@ public final class StudyAdManager {
 
     /** Safe display is possible ONLY if the home resumed after a real study screen. */
     public void onHomeResumed(MainActivity activity, boolean returnedFromStudy) {
+        homeResumed = true;
+        if (returnedFromStudy) awaitingStudyStop = true;
         if (banner != null) banner.resume();
-        if (!adsReady) return;
-        if (returnedFromStudy && canShowNow(activity)) {
-            showAtStudyBreak(activity);
-        } else {
-            preloadInterstitial(activity);
+        // Activity.onResume can precede the old player's onStop. Wait for it.
+        if (awaitingStudyStop) onStudyScreenStopped();
+        else if (adsReady) preloadInterstitial(activity);
+    }
+
+    /** Called after the study Activity has really stopped and released playback. */
+    public void onStudyScreenStopped() {
+        if (!homeResumed || !awaitingStudyStop) return;
+        MainActivity activity = home.get();
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            awaitingStudyStop = false;
+            return;
         }
+        if (((PWStudyApplication) activity.getApplication()).hasOpenStudyScreen()) return;
+        awaitingStudyStop = false;
+        if (!adsReady) return;
+        if (canShowNow(activity)) showAtStudyBreak(activity);
+        else preloadInterstitial(activity);
     }
 
     private boolean canShowNow(MainActivity activity) {
