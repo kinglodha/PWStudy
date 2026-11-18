@@ -3,6 +3,8 @@ package com.study.pwjarvis;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.Uri;
@@ -18,6 +20,8 @@ import java.util.concurrent.Executors;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -64,6 +68,13 @@ public class TelegramViewerActivity extends Activity {
     };
 
     private WebView web;
+    private LinearLayout pageRoot;
+    private FrameLayout fullscreenLayer;
+    private View fullscreenVideo;
+    private WebChromeClient.CustomViewCallback fullscreenCallback;
+    private Button landscapeButton;
+    private boolean manualLandscape;
+    private int orientationBeforeFullscreen = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
     private LinearLayout header;
     private FrameLayout webContainer;
     private Button studyBackOverlay;
@@ -86,6 +97,7 @@ public class TelegramViewerActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         // Keep channel view edge-to-edge inside the app. Pad only the list.
         root.setBackgroundColor(BG);
+        pageRoot = root;
 
         header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
@@ -135,7 +147,34 @@ public class TelegramViewerActivity extends Activity {
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(false);
-        web.setWebChromeClient(new WebChromeClient());
+        // Telegram Web delivers HTML5 video fullscreen through WebChromeClient.
+        // Without these callbacks Android keeps playback inside the portrait WebView.
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+                if (view == null || fullscreenLayer == null || fullscreenVideo != null) {
+                    if (callback != null) callback.onCustomViewHidden();
+                    return;
+                }
+                fullscreenVideo = view;
+                fullscreenCallback = callback;
+                orientationBeforeFullscreen = getRequestedOrientation();
+                if (view.getParent() instanceof ViewGroup) {
+                    ((ViewGroup) view.getParent()).removeView(view);
+                }
+                fullscreenLayer.addView(view, new FrameLayout.LayoutParams(-1, -1));
+                pageRoot.setVisibility(View.GONE);
+                fullscreenLayer.setVisibility(View.VISIBLE);
+                getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                updateVideoSystemUi();
+            }
+
+            @Override
+            public void onHideCustomView() {
+                exitVideoFullscreen(false);
+            }
+        });
         web.setDownloadListener((url, userAgent, contentDisposition, mimeType, length) -> {
             Uri uri = Uri.parse(url);
             if (isPdfLink(uri) || (mimeType != null
@@ -216,9 +255,30 @@ public class TelegramViewerActivity extends Activity {
         FrameLayout.LayoutParams overlayParams = new FrameLayout.LayoutParams(
                 dp(106), dp(64), Gravity.TOP | Gravity.START);
         webContainer.addView(studyBackOverlay, overlayParams);
+        // A native orientation control also works when Telegram does not expose
+        // an HTML5 fullscreen button (for example on some embedded players).
+        landscapeButton = new Button(this);
+        landscapeButton.setText("⛶ Landscape");
+        landscapeButton.setAllCaps(false);
+        landscapeButton.setTextSize(12);
+        landscapeButton.setTextColor(Color.WHITE);
+        landscapeButton.setBackgroundTintList(
+                android.content.res.ColorStateList.valueOf(PANEL));
+        landscapeButton.setOnClickListener(v -> toggleTelegramLandscape());
+        FrameLayout.LayoutParams rotateParams = new FrameLayout.LayoutParams(
+                dp(120), dp(52), Gravity.TOP | Gravity.END);
+        rotateParams.topMargin = dp(6);
+        rotateParams.rightMargin = dp(6);
+        webContainer.addView(landscapeButton, rotateParams);
         root.addView(webContainer, new LinearLayout.LayoutParams(-1, 0, 1));
 
-        setContentView(root);
+        FrameLayout outer = new FrameLayout(this);
+        outer.addView(root, new FrameLayout.LayoutParams(-1, -1));
+        fullscreenLayer = new FrameLayout(this);
+        fullscreenLayer.setBackgroundColor(Color.BLACK);
+        fullscreenLayer.setVisibility(View.GONE);
+        outer.addView(fullscreenLayer, new FrameLayout.LayoutParams(-1, -1));
+        setContentView(outer);
         AppAppearance.apply(this, root);
         buildChannelList();
     }
@@ -270,7 +330,58 @@ public class TelegramViewerActivity extends Activity {
                 + ". Sign in only if Telegram requests it.");
     }
 
+    private void toggleTelegramLandscape() {
+        if (fullscreenVideo != null) return; // HTML5 fullscreen owns rotation.
+        manualLandscape = !manualLandscape;
+        landscapeButton.setText(manualLandscape ? "↺ Portrait" : "⛶ Landscape");
+        setRequestedOrientation(manualLandscape
+                ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+    }
+
+    private void updateVideoSystemUi() {
+        getWindow().getDecorView().setSystemUiVisibility(
+                fullscreenVideo == null ? View.SYSTEM_UI_FLAG_VISIBLE
+                        : View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+    }
+
+    private void exitVideoFullscreen(boolean notifyWeb) {
+        if (fullscreenVideo == null) return;
+        View previous = fullscreenVideo;
+        WebChromeClient.CustomViewCallback callback = fullscreenCallback;
+        fullscreenVideo = null;
+        fullscreenCallback = null;
+        fullscreenLayer.removeView(previous);
+        fullscreenLayer.setVisibility(View.GONE);
+        pageRoot.setVisibility(View.VISIBLE);
+        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        setRequestedOrientation(orientationBeforeFullscreen);
+        updateVideoSystemUi();
+        if (notifyWeb && callback != null) callback.onCustomViewHidden();
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        // Keep the existing Telegram WebView and the playing HTML5 video alive.
+        if (fullscreenVideo != null) updateVideoSystemUi();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && fullscreenVideo != null) updateVideoSystemUi();
+    }
+
     private void showChannelList() {
+        exitVideoFullscreen(true);
+        manualLandscape = false;
+        if (landscapeButton != null) landscapeButton.setText("⛶ Landscape");
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         if (web != null) {
             web.stopLoading();
         }
@@ -422,7 +533,9 @@ public class TelegramViewerActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (web != null && webContainer.getVisibility() == View.VISIBLE) {
+        if (fullscreenVideo != null) {
+            exitVideoFullscreen(true);
+        } else if (web != null && webContainer.getVisibility() == View.VISIBLE) {
             // Never navigate into Telegram Web's previous pages on Android Back.
             showChannelList();
         } else {
@@ -432,6 +545,7 @@ public class TelegramViewerActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        exitVideoFullscreen(true);
         pdfWorker.shutdownNow();
         if (web != null) {
             web.stopLoading();
