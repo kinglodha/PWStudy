@@ -531,14 +531,12 @@ public class LibraryActivity extends Activity {
 
             startActivity(intent);
 
+        } else if (name.endsWith(".pdf")) {
+            Intent intent = new Intent(this, PdfActivity.class);
+            intent.setData(Uri.fromFile(file));
+            startActivity(intent);
         } else {
-
-            Toast.makeText(
-                this,
-                "PDF viewing needs a working PDF viewer. " +
-                "Your current PdfActivity is only a placeholder.",
-                Toast.LENGTH_LONG
-            ).show();
+            Toast.makeText(this, "Unsupported file type", Toast.LENGTH_LONG).show();
         }
     }
 
