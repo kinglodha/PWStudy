@@ -1,16 +1,167 @@
 package com.study.pwjarvis;
 
-import android.app.*;
-import android.os.*;
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.os.Bundle;
 import android.net.Uri;
-import android.widget.*;
-import android.view.*;
-import android.graphics.*;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.*;
+import java.io.File;
+import java.io.IOException;
 
+/** Offline PDF reader: page navigation, zoom/pan and reading-position persistence. */
 public class PdfActivity extends Activity {
-    @Override public void onCreate(Bundle b){ super.onCreate(b);
-        TextView t=new TextView(this); t.setText("PDF viewer foundation. For local PDFs, choose a PDF using the Android file picker from the Offline Library. Full page rendering and file saving are in the next build step."); t.setPadding(24,24,24,24); setContentView(t);
+    private PdfRenderer renderer;
+    private ParcelFileDescriptor descriptor;
+    private ImageView pageImage;
+    private TextView pageLabel;
+    private HorizontalScrollView horizontal;
+    private ScrollView vertical;
+    private Bitmap currentBitmap;
+    private int pageIndex = 0;
+    private float zoom = 1f;
+    private String documentKey;
+    private int screenWidth;
+
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        getWindow().setStatusBarColor(Color.rgb(18,18,18));
+        Uri uri = getIntent().getData();
+        if (uri == null) {
+            String extra = getIntent().getStringExtra("pdf_uri");
+            if (extra != null) uri = Uri.parse(extra);
+        }
+        if (uri == null) { showError("No PDF selected"); return; }
+        documentKey = uri.toString();
+        try {
+            if ("file".equalsIgnoreCase(uri.getScheme())) {
+                descriptor = ParcelFileDescriptor.open(new File(uri.getPath()), ParcelFileDescriptor.MODE_READ_ONLY);
+            } else {
+                descriptor = getContentResolver().openFileDescriptor(uri, "r");
+            }
+            if (descriptor == null) throw new IOException("Cannot access PDF");
+            renderer = new PdfRenderer(descriptor);
+            if (renderer.getPageCount() == 0) throw new IOException("Empty PDF");
+        } catch (Exception ex) {
+            showError("Unable to open PDF: " + ex.getMessage());
+            return;
+        }
+        pageIndex = Math.max(0, Math.min(renderer.getPageCount()-1,
+                getPreferences(MODE_PRIVATE).getInt(documentKey, 0)));
+        screenWidth = getResources().getDisplayMetrics().widthPixels;
+        buildUi();
+        renderPage();
+    }
+
+    private Button button(String label, LinearLayout row, View.OnClickListener listener) {
+        Button b = new Button(this);
+        b.setText(label);
+        b.setAllCaps(false);
+        b.setTextSize(12);
+        row.addView(b, new LinearLayout.LayoutParams(0, -2, 1));
+        b.setOnClickListener(listener);
+        return b;
+    }
+
+    private void buildUi() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(Color.rgb(24,24,24));
+        LinearLayout controls = new LinearLayout(this);
+        controls.setOrientation(LinearLayout.HORIZONTAL);
+        root.addView(controls);
+        button("Back", controls, v -> finish());
+        button("−", controls, v -> changeZoom(zoom / 1.5f));
+        button("Fit", controls, v -> changeZoom(1f));
+        button("+", controls, v -> changeZoom(zoom * 1.5f));
+        button("Go to", controls, v -> jumpToPage());
+        pageLabel = new TextView(this);
+        pageLabel.setTextColor(Color.WHITE);
+        pageLabel.setGravity(Gravity.CENTER);
+        pageLabel.setPadding(8, 8, 8, 8);
+        root.addView(pageLabel);
+        horizontal = new HorizontalScrollView(this);
+        horizontal.setFillViewport(true);
+        vertical = new ScrollView(this);
+        vertical.setFillViewport(true);
+        pageImage = new ImageView(this);
+        pageImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        pageImage.setAdjustViewBounds(true);
+        vertical.addView(pageImage);
+        horizontal.addView(vertical);
+        root.addView(horizontal, new LinearLayout.LayoutParams(-1, 0, 1));
+        LinearLayout navigation = new LinearLayout(this);
+        root.addView(navigation);
+        button("◀ Previous", navigation, v -> goTo(pageIndex - 1));
+        button("Next ▶", navigation, v -> goTo(pageIndex + 1));
+        setContentView(root);
+    }
+
+    private void changeZoom(float value) {
+        float next = Math.max(1f, Math.min(4f, value));
+        if (next != zoom) { zoom = next; renderPage(); }
+    }
+
+    private void goTo(int index) {
+        if (renderer == null || index < 0 || index >= renderer.getPageCount()) return;
+        pageIndex = index;
+        getPreferences(MODE_PRIVATE).edit().putInt(documentKey, pageIndex).apply();
+        renderPage();
+    }
+
+    private void jumpToPage() {
+        final EditText input = new EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        input.setHint("1 - " + renderer.getPageCount());
+        new AlertDialog.Builder(this).setTitle("Go to page").setView(input)
+            .setPositiveButton("Go", (d,w) -> {
+                try { goTo(Integer.parseInt(input.getText().toString()) - 1); }
+                catch (NumberFormatException ignored) { }
+            }).setNegativeButton("Cancel", null).show();
+    }
+
+    private void renderPage() {
+        if (renderer == null) return;
+        pageLabel.setText("Page " + (pageIndex + 1) + " / " + renderer.getPageCount()
+                + "     Zoom " + Math.round(zoom * 100) + "%");
+        try (PdfRenderer.Page page = renderer.openPage(pageIndex)) {
+            float fit = (screenWidth - 16f) / page.getWidth();
+            int width = Math.max(1, Math.round(page.getWidth() * fit * zoom));
+            int height = Math.max(1, Math.round(page.getHeight() * fit * zoom));
+            // Prevent very large allocations on low-memory devices.
+            float cap = Math.min(1f, (float)Math.sqrt(16000000.0 / ((double)width * height)));
+            width = Math.max(1, Math.round(width * cap));
+            height = Math.max(1, Math.round(height * cap));
+            Bitmap next = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
+            next.eraseColor(Color.WHITE);
+            page.render(next, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+            pageImage.setImageBitmap(next);
+            pageImage.setLayoutParams(new android.widget.FrameLayout.LayoutParams(width, height));
+            Bitmap old = currentBitmap;
+            currentBitmap = next;
+            if (old != null && old != next) old.recycle();
+            horizontal.post(() -> { horizontal.scrollTo(0, 0); vertical.scrollTo(0, 0); });
+        } catch (Exception ex) {
+            Toast.makeText(this, "Page rendering failed: " + ex.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void showError(String message) {
+        new AlertDialog.Builder(this).setTitle("PDF error").setMessage(message)
+            .setPositiveButton("Close", (d,w) -> finish()).setCancelable(false).show();
+    }
+
+    @Override protected void onDestroy() {
+        pageImage = null;
+        if (currentBitmap != null) { currentBitmap.recycle(); currentBitmap = null; }
+        if (renderer != null) { renderer.close(); renderer = null; }
+        if (descriptor != null) { try { descriptor.close(); } catch (IOException ignored) {} }
+        super.onDestroy();
     }
 }
