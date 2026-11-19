@@ -14,6 +14,10 @@ import android.view.View;
 import android.widget.*;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Set;
+import java.util.HashSet;
 
 /** Offline PDF reader: page navigation, zoom/pan and reading-position persistence. */
 public class PdfActivity extends Activity {
@@ -81,6 +85,7 @@ public class PdfActivity extends Activity {
         button("Fit", controls, v -> changeZoom(1f));
         button("+", controls, v -> changeZoom(zoom * 1.5f));
         button("Go to", controls, v -> jumpToPage());
+        button("Marks", controls, v -> showBookmarks());
         pageLabel = new TextView(this);
         pageLabel.setTextColor(Color.WHITE);
         pageLabel.setGravity(Gravity.CENTER);
@@ -100,6 +105,7 @@ public class PdfActivity extends Activity {
         root.addView(navigation);
         button("◀ Previous", navigation, v -> goTo(pageIndex - 1));
         button("Next ▶", navigation, v -> goTo(pageIndex + 1));
+        button("☆ Save", navigation, v -> toggleBookmark());
         setContentView(root);
     }
 
@@ -126,10 +132,57 @@ public class PdfActivity extends Activity {
             }).setNegativeButton("Cancel", null).show();
     }
 
+    private String bookmarkKey() {
+        return "bookmark:" + documentKey;
+    }
+
+    private Set<String> savedBookmarks() {
+        return new HashSet<>(getPreferences(MODE_PRIVATE)
+                .getStringSet(bookmarkKey(), Collections.emptySet()));
+    }
+
+    private void toggleBookmark() {
+        Set<String> bookmarks = savedBookmarks();
+        String page = Integer.toString(pageIndex);
+        boolean added = bookmarks.add(page);
+        if (!added) bookmarks.remove(page);
+        getPreferences(MODE_PRIVATE).edit()
+                .putStringSet(bookmarkKey(), bookmarks).apply();
+        Toast.makeText(this, added ? "Page bookmarked" : "Bookmark removed",
+                Toast.LENGTH_SHORT).show();
+        updatePageLabel();
+    }
+
+    private void showBookmarks() {
+        ArrayList<Integer> pages = new ArrayList<>();
+        for (String entry : savedBookmarks()) {
+            try {
+                int index = Integer.parseInt(entry);
+                if (index >= 0 && index < renderer.getPageCount()) pages.add(index);
+            } catch (NumberFormatException ignored) { }
+        }
+        Collections.sort(pages);
+        if (pages.isEmpty()) {
+            Toast.makeText(this, "No bookmarked pages yet", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] labels = new String[pages.size()];
+        for (int i = 0; i < pages.size(); i++) labels[i] = "Page " + (pages.get(i) + 1);
+        new AlertDialog.Builder(this).setTitle("Saved pages")
+                .setItems(labels, (dialog, index) -> goTo(pages.get(index)))
+                .setNegativeButton("Close", null).show();
+    }
+
+    private void updatePageLabel() {
+        if (renderer == null || pageLabel == null) return;
+        String star = savedBookmarks().contains(Integer.toString(pageIndex)) ? " ★" : "";
+        pageLabel.setText("Page " + (pageIndex + 1) + " / " + renderer.getPageCount()
+                + star + "     Zoom " + Math.round(zoom * 100) + "%");
+    }
+
     private void renderPage() {
         if (renderer == null) return;
-        pageLabel.setText("Page " + (pageIndex + 1) + " / " + renderer.getPageCount()
-                + "     Zoom " + Math.round(zoom * 100) + "%");
+        updatePageLabel();
         try (PdfRenderer.Page page = renderer.openPage(pageIndex)) {
             float fit = (screenWidth - 16f) / page.getWidth();
             int width = Math.max(1, Math.round(page.getWidth() * fit * zoom));
@@ -143,6 +196,8 @@ public class PdfActivity extends Activity {
             page.render(next, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
             pageImage.setImageBitmap(next);
             pageImage.setLayoutParams(new android.widget.FrameLayout.LayoutParams(width, height));
+            vertical.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                    Math.max(screenWidth, width), -1));
             Bitmap old = currentBitmap;
             currentBitmap = next;
             if (old != null && old != next) old.recycle();
