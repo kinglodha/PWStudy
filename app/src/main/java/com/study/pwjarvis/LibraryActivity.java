@@ -124,6 +124,10 @@ public class LibraryActivity extends Activity {
         addSubject("Chemistry");
         addSubject("Biology");
 
+        Button organizer = makeButton("AI Organize PDFs (Offline Preview)");
+        list.addView(organizer);
+        organizer.setOnClickListener(v -> startActivity(new Intent(this, PdfOrganizerActivity.class)));
+
         list.addView(label("STORAGE INFORMATION"));
 
         list.addView(label(
