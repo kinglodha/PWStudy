@@ -10,6 +10,9 @@ import android.graphics.Color;
 import android.graphics.pdf.PdfRenderer;
 import android.os.ParcelFileDescriptor;
 import android.view.Gravity;
+import android.view.ScaleGestureDetector;
+import android.view.MotionEvent;
+import android.view.ViewGroup;
 import android.view.View;
 import android.widget.*;
 import java.io.File;
@@ -32,6 +35,7 @@ public class PdfActivity extends Activity {
     private float zoom = 1f;
     private String documentKey;
     private int screenWidth;
+    private ScaleGestureDetector scaleDetector;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -93,13 +97,38 @@ public class PdfActivity extends Activity {
         root.addView(pageLabel);
         horizontal = new HorizontalScrollView(this);
         horizontal.setFillViewport(true);
+        horizontal.setHorizontalScrollBarEnabled(true);
         vertical = new ScrollView(this);
         vertical.setFillViewport(true);
+        vertical.setVerticalScrollBarEnabled(true);
         pageImage = new ImageView(this);
         pageImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
         pageImage.setAdjustViewBounds(true);
-        vertical.addView(pageImage);
-        horizontal.addView(vertical);
+        vertical.addView(pageImage, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        horizontal.addView(vertical, new android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        scaleDetector = new ScaleGestureDetector(this,
+                new ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                    private float pendingZoom;
+                    @Override public boolean onScaleBegin(ScaleGestureDetector detector) {
+                        pendingZoom = zoom;
+                        return true;
+                    }
+                    @Override public boolean onScale(ScaleGestureDetector detector) {
+                        pendingZoom = Math.max(1f, Math.min(4f,
+                                pendingZoom * detector.getScaleFactor()));
+                        return true;
+                    }
+                    @Override public void onScaleEnd(ScaleGestureDetector detector) {
+                        changeZoom(pendingZoom);
+                    }
+                });
+        View.OnTouchListener zoomListener = (view, event) -> {
+            scaleDetector.onTouchEvent(event);
+            return event.getPointerCount() > 1 || scaleDetector.isInProgress();
+        };
+        pageImage.setOnTouchListener(zoomListener);
         root.addView(horizontal, new LinearLayout.LayoutParams(-1, 0, 1));
         LinearLayout navigation = new LinearLayout(this);
         root.addView(navigation);
@@ -196,8 +225,10 @@ public class PdfActivity extends Activity {
             page.render(next, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
             pageImage.setImageBitmap(next);
             pageImage.setLayoutParams(new android.widget.FrameLayout.LayoutParams(width, height));
+            // The horizontal scroll child must be as wide as the rendered page.
+            // A fixed viewport-sized child clips the right edge on zoom.
             vertical.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
-                    Math.max(screenWidth, width), -1));
+                    Math.max(screenWidth, width), ViewGroup.LayoutParams.MATCH_PARENT));
             Bitmap old = currentBitmap;
             currentBitmap = next;
             if (old != null && old != next) old.recycle();
@@ -213,6 +244,7 @@ public class PdfActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        if (pageImage != null) pageImage.setImageDrawable(null);
         pageImage = null;
         if (currentBitmap != null) { currentBitmap.recycle(); currentBitmap = null; }
         if (renderer != null) { renderer.close(); renderer = null; }
