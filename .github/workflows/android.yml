@@ -1,7 +1,7 @@
 name: Build Android APK
 on:
   push:
-    branches: [ "main", "pwstudy-pdf-v3-2026-11-19" ]
+    branches: [ "main", "pwstudy-**" ]
   workflow_dispatch:
 jobs:
   build:
