@@ -417,60 +417,50 @@ public class LibraryActivity extends Activity {
 
     // Copy imported file into PWStudy
     boolean copyFile(Uri uri) {
-
+        File destination = null;
         try {
-
-            String name = "Imported_" +
-                System.currentTimeMillis();
-
-            String mime = getContentResolver()
-                .getType(uri);
-
-            if (mime != null) {
-
-                String ext = android.webkit.MimeTypeMap
-                    .getSingleton()
-                    .getExtensionFromMimeType(mime);
-
-                if (ext != null) {
-                    name += "." + ext;
+            String mime = getContentResolver().getType(uri);
+            String extension = mime == null ? null
+                    : android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mime);
+            if (extension == null || extension.isEmpty()) {
+                String path = uri.getLastPathSegment();
+                if (path != null && path.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+                    extension = "pdf";
                 }
             }
-
-            File destination = new File(
-                getFolder(selectedSubject),
-                name
-            );
-
-            InputStream input =
-                getContentResolver().openInputStream(uri);
-
-            if (input == null) return false;
-
-            FileOutputStream output =
-                new FileOutputStream(destination);
-
-            byte[] buffer = new byte[8192];
-
-            int length;
-
-            while ((length = input.read(buffer)) > 0) {
-                output.write(buffer, 0, length);
+            String suffix = extension == null || extension.isEmpty() ? "" : "." + extension;
+            File folder = getFolder(selectedSubject);
+            // Multiple selected documents can arrive within the same millisecond.
+            // CREATE_NEW semantics are achieved by reserving a unique filename.
+            for (int attempt = 0; attempt < 1000; attempt++) {
+                String candidate = "Imported_" + System.currentTimeMillis()
+                        + "_" + attempt + suffix;
+                File proposed = new File(folder, candidate);
+                if (proposed.createNewFile()) {
+                    destination = proposed;
+                    break;
+                }
             }
-
-            input.close();
-            output.close();
-
+            if (destination == null) throw new IOException("No free import filename");
+            try (InputStream input = getContentResolver().openInputStream(uri)) {
+                if (input == null) throw new IOException("Cannot read selected document");
+                try (FileOutputStream output = new FileOutputStream(destination)) {
+                    byte[] buffer = new byte[8192];
+                    int length;
+                    while ((length = input.read(buffer)) != -1) {
+                        output.write(buffer, 0, length);
+                    }
+                    output.getFD().sync();
+                }
+            }
             return true;
-
         } catch (Exception e) {
-
-            Toast.makeText(
-                this,
-                "Import failed: " + e.getMessage(),
-                Toast.LENGTH_LONG
-            ).show();
-
+            // Never leave an incomplete import that appears to be a valid PDF/video.
+            if (destination != null && destination.exists() && !destination.delete()) {
+                android.util.Log.w("PWStudyLibrary", "Could not remove incomplete import");
+            }
+            Toast.makeText(this, "Import failed: " + e.getMessage(),
+                    Toast.LENGTH_LONG).show();
             return false;
         }
     }
