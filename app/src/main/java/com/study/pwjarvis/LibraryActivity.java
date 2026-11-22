@@ -15,6 +15,7 @@ public class LibraryActivity extends Activity {
 
     LinearLayout list;
     EditText searchBox;
+    LinearLayout fileResults;
 
     String selectedSubject = "Physics";
     String sortMode = "date";
@@ -212,6 +213,9 @@ public class LibraryActivity extends Activity {
 
         // File list
         list.addView(label("DOWNLOADED MATERIALS"));
+        fileResults = new LinearLayout(this);
+        fileResults.setOrientation(LinearLayout.VERTICAL);
+        list.addView(fileResults);
 
         displayFiles("");
         
@@ -240,22 +244,16 @@ public class LibraryActivity extends Activity {
     // Display files
     void displayFiles(String query) {
 
-        // Remove old file cards, keep top controls
-        int start = 8;
-
-        if (list.getChildCount() > start) {
-            list.removeViews(
-                start,
-                list.getChildCount() - start
-            );
-        }
+        // Refresh only the results container, never the search or action controls.
+        if (fileResults == null) return;
+        fileResults.removeAllViews();
 
         File folder = getFolder(selectedSubject);
         File[] files = folder.listFiles();
 
         if (files == null || files.length == 0) {
 
-            list.addView(label(
+            fileResults.addView(label(
                 "No files found. Import your study materials."
             ));
 
@@ -290,7 +288,7 @@ public class LibraryActivity extends Activity {
         }
 
         if (shown == 0) {
-            list.addView(label("No matching files."));
+            fileResults.addView(label("No matching files."));
         }
     }
 
@@ -340,7 +338,7 @@ public class LibraryActivity extends Activity {
 
         card.setOnClickListener(v -> showFileOptions(file));
 
-        list.addView(card);
+        fileResults.addView(card);
     }
 
     // Import multiple files
@@ -546,7 +544,12 @@ public class LibraryActivity extends Activity {
                 String newName =
                     input.getText().toString().trim();
 
-                if (newName.isEmpty()) return;
+                if (newName.isEmpty() || newName.equals(".") || newName.equals("..")
+                        || newName.contains("/") || newName.contains("\\")
+                        || newName.indexOf(0) >= 0) {
+                    Toast.makeText(this, "Invalid filename", Toast.LENGTH_SHORT).show();
+                    return;
+                }
 
                 File newFile = new File(
                     file.getParent(),
