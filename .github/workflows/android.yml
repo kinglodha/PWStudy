@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ "main", "pwstudy-v1", "pwstudy-telegram-fix", "pwstudy-player-pdf-fix", "pwstudy-pdf-settings-2026-11-16", "pwstudy-pdf-toolbar-custom-2026-11-16", "pwstudy-advanced-pdf-tools-2026-11-16", "pwstudy-pdfs-home-customize-2026-11-17", "pwstudy-admob-test-2026-11-18", "pwstudy-telegram-landscape-2026-11-18", "pwstudy-adfree-2026-11-18" ]
+    branches: [ "main", "pwstudy-v1", "pwstudy-telegram-fix", "pwstudy-player-pdf-fix", "pwstudy-pdf-settings-2026-11-16", "pwstudy-pdf-toolbar-custom-2026-11-16", "pwstudy-advanced-pdf-tools-2026-11-16", "pwstudy-pdfs-home-customize-2026-11-17", "pwstudy-admob-test-2026-11-18", "pwstudy-telegram-landscape-2026-11-18", "pwstudy-adfree-2026-11-18", "pwstudy-restore-*" ]
   workflow_dispatch:
 
 jobs:
