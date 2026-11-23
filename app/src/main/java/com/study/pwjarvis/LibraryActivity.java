@@ -16,7 +16,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ListView;
+import android.widget.GridView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -42,7 +42,8 @@ public class LibraryActivity extends Activity {
     private final String[] folders = {"All", "Physics", "Chemistry", "Biology", "Documents", "Videos"};
     private File base;
     private Spinner filter;
-    private ListView list;
+    private GridView list;
+    private int libraryColumns = 1;
     private EditText search;
     private TextView summary;
     private final List<File> shown = new ArrayList<>();
@@ -98,6 +99,21 @@ public class LibraryActivity extends Activity {
         headerActionsParams.bottomMargin = dp(6);
         root.addView(headerActions, headerActionsParams);
 
+        Button layout = new Button(this);
+        layout.setText("Library view");
+        layout.setAllCaps(false);
+        layout.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("Library view")
+                .setItems(new String[]{"List", "Condensed", "Grid", "Book Cover"}, (dialog, which) -> {
+                    libraryColumns = which < 2 ? 1 : which == 2 ? 2 : 3;
+                    getPreferences(MODE_PRIVATE).edit().putInt("library_columns", libraryColumns).apply();
+                    list.setNumColumns(libraryColumns);
+                    layout.setText("View: " + new String[]{"List", "Condensed", "Grid", "Book Cover"}[which]);
+                    refresh();
+                }).show());
+        root.addView(layout, new LinearLayout.LayoutParams(-1, dp(44)));
+
+
         search = new EditText(this);
         search.setSingleLine(true);
         search.setHint("Search downloaded files");
@@ -130,7 +146,10 @@ public class LibraryActivity extends Activity {
         summary.setPadding(dp(4), dp(6), dp(4), dp(6));
         root.addView(summary);
 
-        list = new ListView(this);
+        libraryColumns = getPreferences(MODE_PRIVATE).getInt("library_columns", 1);
+        list = new GridView(this);
+        list.setNumColumns(libraryColumns);
+        list.setVerticalSpacing(dp(6));
         root.addView(list, new LinearLayout.LayoutParams(-1, 0, 1));
         filter.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) { refresh(); }
