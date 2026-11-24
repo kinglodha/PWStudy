@@ -205,7 +205,7 @@ public class DeviceDocumentsActivity extends Activity {
                 .setNegativeButton("Cancel", (dialog, which) -> {})
                 .setPositiveButton("Rename", (dialog, which) -> {
                     String name = field.getText().toString().trim();
-                    if (name.isEmpty() || name.contains("/") || name.contains("\\\\")) {
+                    if (name.isEmpty() || name.contains("/") || name.contains("\\")) {
                         Toast.makeText(this, "Enter a valid filename", Toast.LENGTH_LONG).show();
                         return;
                     }
