@@ -58,8 +58,17 @@ public class PlayerActivity extends Activity {
     private int repeatMode = Player.REPEAT_MODE_OFF;
     private String videoPath;
     private Uri videoUri;
+    private Uri mediaIdentity;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService work = Executors.newSingleThreadExecutor();
+    private final Runnable checkpointTask = new Runnable() {
+        @Override public void run() {
+            if (player != null && player.isPlaying()) {
+                savePlaybackPosition();
+                handler.postDelayed(this, 15_000L);
+            }
+        }
+    };
     private final Runnable sleepAction = () -> {
         if (player != null) player.pause();
         toast("Sleep timer finished; playback paused");
@@ -83,7 +92,10 @@ public class PlayerActivity extends Activity {
             finish();
             return;
         }
-        if (state != null) {
+        mediaIdentity = videoUri != null ? videoUri : Uri.fromFile(new File(videoPath));
+        if (state == null) {
+            resumePosition = LectureProgressStore.read(this, mediaIdentity);
+        } else {
             resumePosition = state.getLong(KEY_POSITION, 0L);
             resumePlay = state.getBoolean(KEY_PLAY, true);
             speed = state.getFloat(KEY_SPEED, 1f);
@@ -116,6 +128,7 @@ public class PlayerActivity extends Activity {
         actionScroll.addView(actionRow, new HorizontalScrollView.LayoutParams(-2, -2));
         addAction("← Back", v -> finish());
         addAction("Speed", v -> selectSpeed());
+        addAction("Restart", v -> restartLecture());
         addAction("Loop", v -> toggleLoop());
         addAction("Mute", v -> toggleMute());
         addAction("Rotate", v -> rotate());
@@ -167,16 +180,29 @@ public class PlayerActivity extends Activity {
             player = new ExoPlayer.Builder(this).build();
             player.addListener(new Player.Listener() {
                 @Override public void onIsPlayingChanged(boolean isPlaying) {
-                    if (isPlaying) getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                    else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                    handler.removeCallbacks(checkpointTask);
+                    if (isPlaying) {
+                        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                        handler.postDelayed(checkpointTask, 15_000L);
+                    } else {
+                        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                        savePlaybackPosition();
+                    }
+                }
+                @Override public void onPlaybackStateChanged(int state) {
+                    if (state == Player.STATE_ENDED) {
+                        handler.removeCallbacks(checkpointTask);
+                        LectureProgressStore.clear(PlayerActivity.this, mediaIdentity);
+                        resumePosition = 0L;
+                        resumePlay = false;
+                    }
                 }
                 @Override public void onPlayerError(PlaybackException error) {
                     toast("Cannot play this video: " + error.getErrorCodeName());
                 }
             });
             playerView.setPlayer(player);
-            player.setMediaItem(MediaItem.fromUri(videoUri != null ? videoUri
-                    : Uri.fromFile(new File(videoPath))));
+            player.setMediaItem(MediaItem.fromUri(mediaIdentity));
             player.setRepeatMode(repeatMode);
             player.setPlaybackSpeed(speed);
             player.setVolume(muted ? 0f : 1f);
@@ -187,6 +213,18 @@ public class PlayerActivity extends Activity {
             toast("Player could not start: " + error.getMessage());
             releasePlayer();
         }
+    }
+
+    /** User-facing reset never deletes the media file or other lecture progress. */
+    private void restartLecture() {
+        LectureProgressStore.clear(this, mediaIdentity);
+        resumePosition = 0L;
+        resumePlay = true;
+        if (player != null) {
+            player.seekTo(0L);
+            player.play();
+        }
+        toast("Lecture restarted from the beginning");
     }
 
     private void selectSpeed() {
@@ -334,6 +372,7 @@ public class PlayerActivity extends Activity {
     }
 
     @Override protected void onStop() {
+        handler.removeCallbacks(checkpointTask);
         savePlaybackPosition();
         releasePlayer();
         super.onStop();
@@ -341,8 +380,16 @@ public class PlayerActivity extends Activity {
 
     private void savePlaybackPosition() {
         if (player != null) {
-            resumePosition = player.getCurrentPosition();
+            if (player.getPlaybackState() == Player.STATE_ENDED) {
+                LectureProgressStore.clear(this, mediaIdentity);
+                resumePosition = 0L;
+                resumePlay = false;
+                return;
+            }
+            resumePosition = Math.max(0L, player.getCurrentPosition());
             resumePlay = player.getPlayWhenReady();
+            LectureProgressStore.save(this, mediaIdentity,
+                    resumePosition, player.getDuration());
         }
     }
 
