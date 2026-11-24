@@ -1,12 +1,17 @@
 package com.study.pwjarvis;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import androidx.core.view.WindowCompat;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.MotionEvent;
+import android.view.ViewConfiguration;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -33,6 +38,12 @@ public class DeviceDocumentsActivity extends Activity {
     private ListView list;
     private TextView location;
     private EditText search;
+    private static final long RENAME_HOLD_MS = 4000L;
+    private final Handler holdHandler = new Handler(Looper.getMainLooper());
+    private Runnable pendingRename;
+    private float downX, downY;
+    private int downPosition = -1;
+    private boolean renameTriggered;
 
     private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density+0.5f);}
 
@@ -110,7 +121,47 @@ public class DeviceDocumentsActivity extends Activity {
         };
         list.setAdapter(adapter);
         root.addView(list,new LinearLayout.LayoutParams(-1,0,1));
+        // Four-second hold to rename; short taps still open PDFs and folders.
+        list.setOnTouchListener((v, event) -> {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    cancelPendingRename();
+                    renameTriggered = false;
+                    downX = event.getX();
+                    downY = event.getY();
+                    downPosition = list.pointToPosition((int) downX, (int) downY);
+                    if (downPosition >= 0 && downPosition < visible.size()) {
+                        final Uri target = visible.get(downPosition).getUri();
+                        pendingRename = () -> {
+                            for (DocumentFile candidate : visible) {
+                                if (target.equals(candidate.getUri())) {
+                                    renameTriggered = true;
+                                    list.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+                                    showRenameDialog(candidate);
+                                    break;
+                                }
+                            }
+                        };
+                        holdHandler.postDelayed(pendingRename, RENAME_HOLD_MS);
+                    }
+                    break;
+                case MotionEvent.ACTION_MOVE:
+                    int slop = ViewConfiguration.get(this).getScaledTouchSlop();
+                    if (event.getPointerCount() != 1 ||
+                            Math.abs(event.getX() - downX) > slop ||
+                            Math.abs(event.getY() - downY) > slop) cancelPendingRename();
+                    break;
+                case MotionEvent.ACTION_POINTER_DOWN:
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    cancelPendingRename();
+                    break;
+            }
+            // Preserve ListView's normal scrolling and click dispatch.
+            return false;
+        });
         list.setOnItemClickListener((p,v,pos,id)->{
+            if (renameTriggered) { renameTriggered = false; return; }
             if(pos<0||pos>=visible.size())return;
             DocumentFile item=visible.get(pos);
             if(item.isDirectory()){currentFolder=item;refresh();} else openDocument(item);
@@ -127,6 +178,52 @@ public class DeviceDocumentsActivity extends Activity {
         super.onResume();
         android.view.ViewGroup content=findViewById(android.R.id.content);
         if(content.getChildCount()>0)AppAppearance.apply(this,content.getChildAt(0));
+    }
+
+    private void cancelPendingRename() {
+        if (pendingRename != null) holdHandler.removeCallbacks(pendingRename);
+        pendingRename = null;
+    }
+
+    private void showRenameDialog(DocumentFile doc) {
+        if (!doc.canWrite()) {
+            Toast.makeText(this, "This folder does not allow renaming", Toast.LENGTH_LONG).show();
+            return;
+        }
+        final String oldName = doc.getName() == null ? "" : doc.getName();
+        final EditText field = new EditText(this);
+        field.setSingleLine(true);
+        field.setText(oldName);
+        int dot = oldName.lastIndexOf('.');
+        field.setSelection(0, dot > 0 && !doc.isDirectory() ? dot : oldName.length());
+        LinearLayout holder = new LinearLayout(this);
+        holder.setPadding(dp(20), dp(8), dp(20), 0);
+        holder.addView(field, new LinearLayout.LayoutParams(-1, -2));
+        new AlertDialog.Builder(this)
+                .setTitle("Rename " + (doc.isDirectory() ? "folder" : "PDF"))
+                .setView(holder)
+                .setNegativeButton("Cancel", (dialog, which) -> {})
+                .setPositiveButton("Rename", (dialog, which) -> {
+                    String name = field.getText().toString().trim();
+                    if (name.isEmpty() || name.contains("/") || name.contains("\\\\")) {
+                        Toast.makeText(this, "Enter a valid filename", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    if (!doc.isDirectory() && oldName.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")
+                            && !name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) name += ".pdf";
+                    try {
+                        if (!doc.renameTo(name)) Toast.makeText(this, "Rename was refused by storage provider", Toast.LENGTH_LONG).show();
+                        else Toast.makeText(this, "Renamed", Toast.LENGTH_SHORT).show();
+                    } catch (Exception e) {
+                        Toast.makeText(this, "Rename failed: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                    refresh();
+                }).show();
+    }
+
+    @Override protected void onDestroy() {
+        cancelPendingRename();
+        super.onDestroy();
     }
 
     private void pickPdf(){
