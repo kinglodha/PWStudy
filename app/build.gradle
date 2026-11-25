@@ -8,7 +8,7 @@ android {
 
     defaultConfig {
         applicationId = project.hasProperty('pwstudyPreview') ? 'com.study.pwjarvis.preview' : 'com.study.pwjarvis'
-        manifestPlaceholders = [appLabel: project.hasProperty('pwstudyPreview') ? 'PWStudy Preview' : 'PW Jarvis Study']
+        manifestPlaceholders = [appLabel: project.hasProperty('pwstudyPreview') ? 'TWEAK' : 'PW Jarvis Study']
         minSdk 23
         targetSdk 35
         versionCode 6
