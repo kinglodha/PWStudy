@@ -156,7 +156,7 @@ public class PdfManagerActivity extends Activity {
             if(!name.toLowerCase(Locale.ROOT).contains(q))continue;
             if(mode.equals("Favorites")&&!favorites.contains(id))continue;
             if(mode.equals("Recent")&&!recent.contains(id))continue;
-            if(mode.equals("Bookmarks")&&!favorites.contains(id))continue;
+            if(mode.equals("Bookmarks"))continue; // Reader page bookmarks are not indexed by this browser yet.
             shown.add(f);
         }
         Collections.sort(shown,(a,b)->{
@@ -166,7 +166,7 @@ public class PdfManagerActivity extends Activity {
             String an=a.getName()==null?"":a.getName(),bn=b.getName()==null?"":b.getName();
             return order.equals("Name Z-A")?bn.compareToIgnoreCase(an):an.compareToIgnoreCase(bn);
         });
-        status.setText(mode+" • "+shown.size()+" PDFs • "+layout);
+        status.setText(mode.equals("Bookmarks")?"Reader page bookmarks: integration pending":mode+" • "+shown.size()+" PDFs • "+layout);
         adapter.notifyDataSetChanged();
     }
     private void setLayout(){grid.setNumColumns(layout.equals("Book Cover")?3:layout.equals("Grid")?2:1);}
