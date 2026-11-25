@@ -60,6 +60,10 @@ public class DeviceDocumentsActivity extends Activity {
         customize.setAllCaps(false);
         customize.setOnClickListener(v->startActivity(new Intent(this,SettingsActivity.class).putExtra("section","pdf")));
         topActions.addView(customize,new LinearLayout.LayoutParams(0,dp(46),1));
+        Button manager=new Button(this);
+        manager.setText("All PDFs"); manager.setAllCaps(false);
+        manager.setOnClickListener(v->startActivity(new Intent(this,PdfManagerActivity.class)));
+        topActions.addView(manager,new LinearLayout.LayoutParams(0,dp(46),1));
         Button choose=new Button(this);
         choose.setText("PDF folder");
         choose.setAllCaps(false);
