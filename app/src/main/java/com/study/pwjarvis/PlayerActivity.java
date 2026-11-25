@@ -129,6 +129,10 @@ public class PlayerActivity extends Activity {
         addAction("← Back", v -> finish());
         addAction("Speed", v -> selectSpeed());
         addAction("Restart", v -> restartLecture());
+        addAction("Offline videos", v -> OfflineVideoLibrary.showSaved(this));
+        if (videoUri != null && "https".equalsIgnoreCase(videoUri.getScheme())) {
+            addAction("Save offline", v -> OfflineVideoLibrary.offerDownload(this, videoUri));
+        }
         addAction("Loop", v -> toggleLoop());
         addAction("Mute", v -> toggleMute());
         addAction("Rotate", v -> rotate());
