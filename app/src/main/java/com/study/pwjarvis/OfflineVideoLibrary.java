@@ -7,7 +7,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Environment;
-import android.webkit.URLUtil;
 import android.widget.Toast;
 
 import java.io.File;
@@ -36,7 +35,7 @@ final class OfflineVideoLibrary {
             return;
         }
         String host = source.getHost();
-        if (host == null || host.isEmpty() || source.getUserInfo() != null) {
+        if (host == null || host.isEmpty() || source.getEncodedAuthority().contains("@")) {
             toast(activity, "Invalid download URL");
             return;
         }
