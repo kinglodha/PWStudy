@@ -35,10 +35,9 @@ public class LibraryActivity extends Activity {
 
     // Main storage folder
     File getRoot() {
-        File root = new File(
-            getExternalFilesDir(null),
-            "PWStudy"
-        );
+        File external = getExternalFilesDir(null);
+        // External app storage can be temporarily unavailable.
+        File root = new File(external != null ? external : getFilesDir(), "PWStudy");
 
         if (!root.exists()) {
             root.mkdirs();
@@ -57,6 +56,17 @@ public class LibraryActivity extends Activity {
         }
 
         return folder;
+    }
+
+    // A directory can disappear or become unreadable during browsing.
+    File[] safeListFiles(File folder) {
+        try {
+            File[] files = folder.listFiles();
+            return files != null ? files : new File[0];
+        } catch (SecurityException ex) {
+            android.util.Log.w("PWStudyLibrary", "Cannot list folder", ex);
+            return new File[0];
+        }
     }
 
     // Main screen setup
@@ -142,8 +152,7 @@ public class LibraryActivity extends Activity {
 
         File folder = getFolder(subject);
 
-        int count = folder.listFiles() == null
-            ? 0 : folder.listFiles().length;
+        int count = safeListFiles(folder).length;
 
         Button button = makeButton(
             subject + "   →   " + count + " files"
@@ -249,9 +258,9 @@ public class LibraryActivity extends Activity {
         fileResults.removeAllViews();
 
         File folder = getFolder(selectedSubject);
-        File[] files = folder.listFiles();
+        File[] files = safeListFiles(folder);
 
-        if (files == null || files.length == 0) {
+        if (files.length == 0) {
 
             fileResults.addView(label(
                 "No files found. Import your study materials."
@@ -359,7 +368,11 @@ public class LibraryActivity extends Activity {
             true
         );
 
-        startActivityForResult(intent, PICK_FILES);
+        try {
+            startActivityForResult(intent, PICK_FILES);
+        } catch (ActivityNotFoundException | SecurityException ex) {
+            Toast.makeText(this, "File picker unavailable", Toast.LENGTH_LONG).show();
+        }
     }
 
     @Override
@@ -500,7 +513,11 @@ public class LibraryActivity extends Activity {
     // Open file
     void openFile(File file) {
 
-        String name = file.getName().toLowerCase();
+        if (!file.isFile() || !file.canRead()) {
+            Toast.makeText(this, "File unavailable. Refresh the library.", Toast.LENGTH_LONG).show();
+            return;
+        }
+        String name = file.getName().toLowerCase(Locale.ROOT);
 
         if (name.endsWith(".mp4") ||
             name.endsWith(".mkv") ||
@@ -521,7 +538,8 @@ public class LibraryActivity extends Activity {
 
         } else if (name.endsWith(".pdf")) {
             Intent intent = new Intent(this, PdfActivity.class);
-            intent.setData(Uri.fromFile(file));
+            // Pass our private file path internally, without exposing a file URI.
+            intent.putExtra("pdf_uri", Uri.fromFile(file).toString());
             startActivity(intent);
         } else {
             Toast.makeText(this, "Unsupported file type", Toast.LENGTH_LONG).show();
