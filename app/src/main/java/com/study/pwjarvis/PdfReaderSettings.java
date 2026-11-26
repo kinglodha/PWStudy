@@ -43,5 +43,15 @@ public final class PdfReaderSettings {
             p(c).edit().putInt(pageKey(document), Math.max(0, index)).apply();
         }
     }
+    public static void movePage(Context c,String oldId,String newId) {
+        if(oldId==null||newId==null||oldId.equals(newId))return;
+        SharedPreferences prefs=p(c);
+        if(prefs.contains(pageKey(oldId)))prefs.edit()
+            .putInt(pageKey(newId),lastPage(c,oldId)).remove(pageKey(oldId)).apply();
+    }
+    public static void flushPage(Context c,String document,int index) {
+        if(document!=null&&rememberPage(c))
+            p(c).edit().putInt(pageKey(document),Math.max(0,index)).commit();
+    }
     public static void reset(Context c) { p(c).edit().clear().apply(); }
 }
