@@ -171,14 +171,16 @@ public class MainActivity extends Activity {
                 {"🎨  Appearance", "Background image and accent colours"},
                 {"⊞  Customize Home", "Change home cards, layout and shortcuts"},
                 {"📂  Device PDFs", "Browse PDFs in phone folders"},
-                {"▶  Video library", "Access saved lecture videos"}
+                {"▶  Video library", "Access saved lecture videos"},
+                {"PDF organizer", "Offline filename review and duplicate audit"}
         };
         Runnable[] actions = new Runnable[] {
                 () -> choosePdf(PICK_TOOLS_PDF), () -> choosePdf(PICK_TOOLS_PDF),
                 () -> choosePdf(PICK_TOOLS_PDF), () -> open(LibraryActivity.class),
                 () -> open(PdfToolbarEditorActivity.class), this::openReaderSettings,
                 () -> open(CustomizationActivity.class), () -> open(HomeCustomizationActivity.class),
-                () -> open(DeviceDocumentsActivity.class), () -> open(LibraryActivity.class)
+                () -> open(DeviceDocumentsActivity.class), () -> open(LibraryActivity.class),
+                () -> open(PdfOrganizerActivity.class)
         };
         if (!grid) {
             for (int i = 0; i < features.length; i++) {

@@ -267,6 +267,7 @@ public class PdfManagerActivity extends Activity {
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("PDF display options").setView(panel).setNegativeButton("Close",null).create();
         for(String name:new String[]{"List","Condensed","Grid","Book Cover"})panel.addView(button((name.equals(layout)?"✓  ":"")+name,()->{layout=name;prefs().edit().putString("layout",layout).apply();setLayout();refresh();dialog.dismiss();}));
         panel.addView(button(light?"Use dark library":"Use light library",()->{light=!light;prefs().edit().putBoolean("light_library",light).apply();applyLibraryTheme();refresh();dialog.dismiss();}));
+        panel.addView(button("Offline PDF organizer",()->{dialog.dismiss();startActivity(new Intent(this,PdfOrganizerActivity.class));}));
         panel.addView(button("Rescan",()->{dialog.dismiss();scan();}));dialog.show();
     }
     private int foreground(){return light?0xff20232b:0xffeeeeee;}
