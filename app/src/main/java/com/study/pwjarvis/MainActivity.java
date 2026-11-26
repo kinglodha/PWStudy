@@ -31,6 +31,7 @@ import java.util.Locale;
 public class MainActivity extends Activity {
     private static final int PICK_READER_PDF = 6401;
     private static final int PICK_TOOLS_PDF = 6402;
+    private static final int PICK_VIDEO = 6403;
     private static final int BACKGROUND = 0xFF090D16;
     private static final int CARD = 0xFF1C2838;
     private ScrollView scroll;
@@ -340,7 +341,7 @@ public class MainActivity extends Activity {
         addTab(navigation, "⌂\nHome", () -> { toolsFromTab = false; renderHome(); });
         addTab(navigation, "▣\nPDFs", () -> open(PdfManagerActivity.class));
         addTab(navigation, "⊞\nTools", this::showTools);
-        addTab(navigation, "▤\nLibrary", () -> open(LibraryActivity.class));
+        addTab(navigation, "▶\nVideo Player", this::chooseVideo);
         addTab(navigation, "⚙\nSettings", () -> open(SettingsActivity.class));
         parent.addView(navigation, new LinearLayout.LayoutParams(-1, dp(66)));
     }
@@ -364,6 +365,17 @@ public class MainActivity extends Activity {
         startActivity(new Intent(this, SettingsActivity.class).putExtra("section", "pdf"));
     }
 
+    private void chooseVideo() {
+        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        pick.setType("video/*");
+        pick.addCategory(Intent.CATEGORY_OPENABLE);
+        pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try { startActivityForResult(pick, PICK_VIDEO); }
+        catch (RuntimeException e) {
+            Toast.makeText(this, "No video file picker available", Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void choosePdf(int request) {
         Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         pick.setType("application/pdf");
@@ -377,13 +389,23 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
         if (result != RESULT_OK || data == null || data.getData() == null) return;
-        if (request != PICK_READER_PDF && request != PICK_TOOLS_PDF) return;
+        if (request != PICK_READER_PDF && request != PICK_TOOLS_PDF && request != PICK_VIDEO) return;
         Uri uri = data.getData();
         try {
             int grants = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
             if (grants != 0) getContentResolver().takePersistableUriPermission(uri, grants);
         } catch (SecurityException ignored) {
-            // The transient read grant still allows opening the selected PDF.
+            // The transient read grant still allows opening the selected document.
+        }
+        if (request == PICK_VIDEO) {
+            Intent play = new Intent(this, PlayerActivity.class);
+            play.setData(uri);
+            play.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try { startActivity(play); }
+            catch (RuntimeException e) {
+                Toast.makeText(this, "Unable to open video player", Toast.LENGTH_LONG).show();
+            }
+            return;
         }
         if (request == PICK_READER_PDF) {
             Intent read = new Intent(this, PdfActivity.class);
