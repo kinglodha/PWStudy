@@ -169,7 +169,7 @@ public class PdfManagerActivity extends Activity {
     }
     private Button button(String label,Runnable run){Button b=new Button(this);b.setText(label);TweakControls.button(b,light,false);b.setOnClickListener(v->run.run());return b;}
     private void goHome(){
-        startActivity(new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        startActivity(new Intent(this,MainActivity.class).putExtra("go_home",true).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
         finish();
     }
     private void renderFolderStrip(){

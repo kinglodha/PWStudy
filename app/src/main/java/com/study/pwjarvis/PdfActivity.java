@@ -444,7 +444,7 @@ public class PdfActivity extends Activity {
     }
     private void goHome(){
         if(renderer!=null)PdfReaderSettings.savePage(this,documentId,pageIndex);
-        startActivity(new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        startActivity(new Intent(this,MainActivity.class).putExtra("go_home",true).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
         finish();
     }
     private void quickActions(){

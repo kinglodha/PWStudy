@@ -54,6 +54,12 @@ public class MainActivity extends Activity {
         renderCurrent();
     }
 
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if(intent.getBooleanExtra("go_home",false)){toolsFromTab=false;renderHome();}
+    }
+
     private void renderCurrent() { if (toolsFromTab) renderTools(); else renderHome(); }
 
     @Override protected void onSaveInstanceState(Bundle state) {
