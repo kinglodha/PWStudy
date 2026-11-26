@@ -77,8 +77,20 @@ public final class PdfToolbarLayout {
     public static int order(Context c, String id) {
         return prefs(c).getInt("order_" + id, indexOf(id) * 10);
     }
+    private static boolean isZoomButton(String id) {
+        return "zoom_out".equals(id)||"zoom_reset".equals(id)||"zoom_in".equals(id);
+    }
+    /** Hide zoom controls for existing installations once, retaining customization. */
+    public static void applyReaderDefaults(Context c) {
+        SharedPreferences p=prefs(c);
+        if(!p.getBoolean("gesture_zoom_default_v1",false)){
+            SharedPreferences.Editor edit=p.edit().putBoolean("gesture_zoom_default_v1",true);
+            for(String id:IDS)if(isZoomButton(id))edit.putBoolean("visible_"+id,false);
+            edit.apply();
+        }
+    }
     public static boolean visible(Context c, String id) {
-        return prefs(c).getBoolean("visible_" + id, true);
+        return prefs(c).getBoolean("visible_" + id, !isZoomButton(id));
     }
     public static void setVisible(Context c, String id, boolean value) {
         prefs(c).edit().putBoolean("visible_" + id, value).apply();

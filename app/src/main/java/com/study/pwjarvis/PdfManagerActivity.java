@@ -26,7 +26,10 @@ public class PdfManagerActivity extends Activity {
             this.name=name;this.parent=parent;this.directory=directory;this.size=size;this.modified=modified;
         }
     }
-    private FileInfo info(DocumentFile f){return metadata.get(f.getUri().toString());}
+    private String documentKey(DocumentFile f){
+        Uri uri=f.getUri();return "file".equals(uri.getScheme())?uri.getPath():uri.toString();
+    }
+    private FileInfo info(DocumentFile f){return metadata.get(documentKey(f));}
     private String nameOf(DocumentFile f){FileInfo m=info(f);return m==null?"PDF storage":m.name;}
     private boolean folderOf(DocumentFile f){FileInfo m=info(f);return m!=null&&m.directory;}
     private long sizeOf(DocumentFile f){FileInfo m=info(f);return m==null?0:m.size;}
@@ -37,7 +40,7 @@ public class PdfManagerActivity extends Activity {
         @Override protected boolean removeEldestEntry(Map.Entry<String,Bitmap> e){return size()>48;}
     };
     private GridView grid;
-    private LinearLayout screen, header, quickActions, bottomTabs, filterBar, folderStrip;
+    private LinearLayout screen, header, bottomTabs, filterBar, folderStrip;
     private PdfFolderShortcuts shortcuts;
     private boolean scanning;
     private boolean light;
@@ -60,7 +63,8 @@ public class PdfManagerActivity extends Activity {
     private void save(String key,Set<String> set){prefs().edit().putStringSet(key,new HashSet<>(set)).apply();}
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
-        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(),true);
+        // Android 15 enforces edge-to-edge for target SDK 35. Own the insets explicitly.
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(),false);
         getWindow().setStatusBarColor(0xff39489e);getWindow().setNavigationBarColor(0xff39489e);
         shortcuts=new PdfFolderShortcuts(this);
         favorites.addAll(stored("favorites"));read.addAll(stored("read"));recent.addAll(stored("recent"));
@@ -68,6 +72,16 @@ public class PdfManagerActivity extends Activity {
         hideRead=prefs().getBoolean("hide_read",false);folderPreview=prefs().getBoolean("folder_preview",true);
         layout=prefs().getString("layout","Book Cover");order=prefs().getString("sort","Name A-Z");light=prefs().getBoolean("light_library",false);
         LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(6),dp(6),dp(6),0);screen=root;
+        // Keep title and sorting controls below network, clock and display cutout.
+        // Also reserve navigation-bar space below the six library tabs.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root,(view,insets)->{
+            androidx.core.graphics.Insets safe=insets.getInsetsIgnoringVisibility(
+                androidx.core.view.WindowInsetsCompat.Type.systemBars() |
+                androidx.core.view.WindowInsetsCompat.Type.displayCutout());
+            androidx.core.graphics.Insets keyboard=insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime());
+            view.setPadding(safe.left+dp(6),safe.top+dp(6),safe.right+dp(6),Math.max(safe.bottom,keyboard.bottom));
+            return androidx.core.view.WindowInsetsCompat.CONSUMED;
+        });
         header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=new TextView(this);title.setText("Library");title.setTextSize(24);title.setTypeface(null,Typeface.BOLD);title.setTag("title");
         header.addView(title,new LinearLayout.LayoutParams(0,dp(52),1));
@@ -79,10 +93,6 @@ public class PdfManagerActivity extends Activity {
         HorizontalScrollView foldersScroll=new HorizontalScrollView(this);foldersScroll.setHorizontalScrollBarEnabled(false);
         folderStrip=new LinearLayout(this);folderStrip.setGravity(Gravity.CENTER_VERTICAL);
         foldersScroll.addView(folderStrip);root.addView(foldersScroll,new LinearLayout.LayoutParams(-1,dp(48)));
-        quickActions=new LinearLayout(this);
-        quickActions.addView(button("Open from device",this::pickPdf),new LinearLayout.LayoutParams(0,dp(44),1));
-        quickActions.addView(button("+ Add folder",this::chooseTree),new LinearLayout.LayoutParams(0,dp(44),1));
-        root.addView(quickActions);
         filterBar=new LinearLayout(this);
         filterBar.addView(button("Recent",()->{mode="Recent";refresh();}),new LinearLayout.LayoutParams(0,dp(44),1));
         filterBar.addView(button("♥ Favorites",()->{mode="Favorites";refresh();}),new LinearLayout.LayoutParams(0,dp(44),1));
@@ -90,11 +100,11 @@ public class PdfManagerActivity extends Activity {
         filterBar.addView(tool("☷","List or cover grid",()->{layout=layout.equals("List")?"Book Cover":"List";prefs().edit().putString("layout",layout).apply();setLayout();refresh();}),new LinearLayout.LayoutParams(dp(42),dp(44)));
         root.addView(filterBar);
         LinearLayout tabs=new LinearLayout(this);bottomTabs=tabs;
-        String[] icons={"▤","▣","◷","♥","★"};
-        String[] names={"Library","Folder","Recent","Favorites","Bookmarks"};
+        String[] icons={"⌂","▤","▣","◷","♥","★"};
+        String[] names={"Home","Library","Folder","Recent","Favorites","Bookmarks"};
         for(int k=0;k<names.length;k++){
-            String tab=names[k];TextView t=tool(icons[k]+"\n"+tab,tab,()->{mode=tab;if(tab.equals("Folder"))currentFolder=tree;refresh();});
-            t.setTextSize(12);tabLabels.add(t);tabs.addView(t,new LinearLayout.LayoutParams(0,dp(56),1));
+            String tab=names[k];TextView t=tool(icons[k]+"\n"+tab,tab,()->{if(tab.equals("Home")){goHome();return;}mode=tab;if(tab.equals("Folder"))currentFolder=tree;refresh();});
+            t.setTextSize(11);t.setMaxLines(2);t.setEllipsize(TextUtils.TruncateAt.END);tabLabels.add(t);tabs.addView(t,new LinearLayout.LayoutParams(0,dp(56),1));
         }
         search=new EditText(this);search.setSingleLine(true);search.setHint("Search all PDFs");
         search.setTextColor(-1);search.setHintTextColor(0xffaaaaaa);
@@ -117,14 +127,14 @@ public class PdfManagerActivity extends Activity {
                 cell.setPadding(dp(6),dp(6),dp(6),dp(6));
                 android.graphics.drawable.GradientDrawable background=new android.graphics.drawable.GradientDrawable();
                 background.setColor(light?0xffffffff:0xff3e3e42);background.setCornerRadius(dp(rowLayout?12:2));cell.setBackground(background);
-                String document=f.getUri().toString();
+                String document=documentKey(f);
                 int progress=PdfReadingProgress.percent(PdfManagerActivity.this,document);
                 if(showCovers && !layout.equals("Condensed") && (!folderOf(f)||folderPreview)){
                     ImageView image=new ImageView(PdfManagerActivity.this);
                     image.setScaleType(ImageView.ScaleType.FIT_CENTER);
                     image.setBackgroundColor(light?0xffedf0f4:0xff424b55);
                     cell.addView(image,new LinearLayout.LayoutParams(rowLayout?dp(50):-1,dp(layout.equals("Book Cover")?170:layout.equals("Grid")?130:66)));
-                    String key=folderOf(f)?folderCovers.get(f.getUri().toString()):f.getUri().toString();Bitmap cached;
+                    String key=folderOf(f)?folderCovers.get(documentKey(f)):f.getUri().toString();Bitmap cached;
                     synchronized(thumbs){cached=thumbs.get(key);}
                     if(cached!=null)image.setImageBitmap(cached);
                     else {image.setImageResource(folderOf(f)?android.R.drawable.ic_menu_agenda:android.R.drawable.ic_menu_gallery);if(key!=null)loadCover(key,image);}
@@ -135,12 +145,12 @@ public class PdfManagerActivity extends Activity {
                 name.setText(nameOf(f));name.setTextColor(foreground());name.setTextSize(layout.equals("Condensed")?13:14);name.setTypeface(null,Typeface.BOLD);
                 name.setMaxLines(2);name.setEllipsize(TextUtils.TruncateAt.END);details.addView(name);
                 TextView meta=new TextView(PdfManagerActivity.this);
-                String state=read.contains(document)?"Completed":progress>=100?"Last page":progress>0?progress+"%":"PDF";
+                String state=mode.equals("Recent")?"Page "+(PdfReaderSettings.lastPage(PdfManagerActivity.this,document)+1):read.contains(document)?"Completed":progress>=100?"Last page":progress>0?progress+"%":"PDF";
                 String size=android.text.format.Formatter.formatShortFileSize(PdfManagerActivity.this,sizeOf(f));
-                meta.setText(folderOf(f)?"Folder":state+" · "+size+(rowLayout?" · "+dateLabel(f):""));
+                meta.setText(folderOf(f)?"Folder":state+(sizeOf(f)>0?" · "+size:"")+(rowLayout?" · "+dateLabel(f):""));
                 meta.setTextSize(11);meta.setTextColor(secondary());LinearLayout actionsRow=new LinearLayout(PdfManagerActivity.this);actionsRow.setGravity(Gravity.CENTER_VERTICAL);
                 if(rowLayout){details.addView(meta);if(progress>0&&!folderOf(f)){ProgressBar indicator=new ProgressBar(PdfManagerActivity.this,null,android.R.attr.progressBarStyleHorizontal);indicator.setMax(100);indicator.setProgress(progress);details.addView(indicator,new LinearLayout.LayoutParams(-1,dp(5)));}}else actionsRow.addView(meta,new LinearLayout.LayoutParams(0,dp(34),1));
-                if(!folderOf(f)){TextView heart=new TextView(PdfManagerActivity.this);heart.setText(favorites.contains(f.getUri().toString())?"♥":"♡");heart.setTextSize(22);heart.setTextColor(favorites.contains(document)?0xffef8b25:foreground());heart.setGravity(Gravity.CENTER);actionsRow.addView(heart,new LinearLayout.LayoutParams(dp(32),dp(34)));heart.setOnClickListener(v->{String id=f.getUri().toString();if(!favorites.add(id))favorites.remove(id);save("favorites",favorites);refresh();});}
+                if(!folderOf(f)){TextView heart=new TextView(PdfManagerActivity.this);heart.setText(favorites.contains(documentKey(f))?"♥":"♡");heart.setTextSize(22);heart.setTextColor(favorites.contains(document)?0xffef8b25:foreground());heart.setGravity(Gravity.CENTER);actionsRow.addView(heart,new LinearLayout.LayoutParams(dp(32),dp(34)));heart.setOnClickListener(v->{String id=documentKey(f);if(!favorites.add(id))favorites.remove(id);save("favorites",favorites);refresh();});}
                 TextView menu=new TextView(PdfManagerActivity.this);menu.setText("⋮");menu.setTextSize(22);menu.setTextColor(foreground());menu.setGravity(Gravity.CENTER);actionsRow.addView(menu,new LinearLayout.LayoutParams(dp(32),dp(34)));menu.setOnClickListener(v->actions(f));if(rowLayout)cell.addView(actionsRow);else details.addView(actionsRow);
                 cell.setOnClickListener(v->open(f));
                 final Handler handler=new Handler(Looper.getMainLooper());
@@ -164,6 +174,7 @@ public class PdfManagerActivity extends Activity {
         grid.setAdapter(adapter);root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
         root.addView(tabs);
         setContentView(root);applyLibraryTheme();setLayout();
+        androidx.core.view.ViewCompat.requestApplyInsets(root);
         String saved=shortcuts.active();
         if(saved!=null)selectFolder(saved);else {renderFolderStrip();status.setText("Add a storage folder to show your PDFs.");}
     }
@@ -245,7 +256,7 @@ public class PdfManagerActivity extends Activity {
     }
     private void scan(){
         if(closed)return;
-        if(tree==null){status.setText("Add a storage folder first.");return;}
+        if(tree==null){refresh();return;}
         final int generation=++scanGeneration;scanning=true;
         status.setText("Scanning PDFs…");
         DocumentFile root=tree;
@@ -282,16 +293,31 @@ public class PdfManagerActivity extends Activity {
     private void refresh(){
         if(grid==null)return;
         shown.clear();String q=search.getText().toString().toLowerCase(Locale.ROOT);
-        for(DocumentFile f:all){
-            String id=f.getUri().toString(),name=nameOf(f);
+        recent.clear();recent.addAll(PdfRecentHistory.ids(this));
+        List<DocumentFile> candidates=new ArrayList<>(all);
+        if(mode.equals("Recent")){
+            Set<String> known=new HashSet<>();for(DocumentFile f:all)known.add(documentKey(f));
+            for(String id:PdfRecentHistory.ids(this)){
+                if(!known.add(id))continue;
+                try{
+                    Uri uri=Uri.parse(id);
+                    DocumentFile doc="content".equals(uri.getScheme())?DocumentFile.fromSingleUri(this,uri):id.startsWith("/")?DocumentFile.fromFile(new java.io.File(id)):null;
+                    if(doc==null)continue;
+                    metadata.put(id,new FileInfo(PdfRecentHistory.name(this,id),null,false,0,PdfRecentHistory.time(this,id)));
+                    candidates.add(doc);
+                }catch(Exception ignored){}
+            }
+        }
+        for(DocumentFile f:candidates){
+            String id=documentKey(f),name=nameOf(f);
             if(!showHidden&&(name.startsWith(".")||hiddenPaths.contains(id)))continue;
             if(mode.equals("Folder")){
                 FileInfo m=info(f);
                 DocumentFile wanted=currentFolder==null?tree:currentFolder;
                 if(m==null||wanted==null||!wanted.getUri().toString().equals(m.parent))continue;
             }else if(folderOf(f))continue;
-            if(hideRead&&read.contains(id))continue;
-            if(!folderOf(f)){int progress=PdfReadingProgress.percent(this,id);if(filter.equals("Unread")&&(read.contains(id)||progress>0))continue;if(filter.equals("In progress")&&(read.contains(id)||progress<=0))continue;if(filter.equals("Completed")&&!read.contains(id))continue;}
+            if(!mode.equals("Recent")&&hideRead&&read.contains(id))continue;
+            if(!mode.equals("Recent")&&!folderOf(f)){int progress=PdfReadingProgress.percent(this,id);if(filter.equals("Unread")&&(read.contains(id)||progress>0))continue;if(filter.equals("In progress")&&(read.contains(id)||progress<=0))continue;if(filter.equals("Completed")&&!read.contains(id))continue;}
             if(!name.toLowerCase(Locale.ROOT).contains(q))continue;
             if(mode.equals("Favorites")&&!favorites.contains(id))continue;
             if(mode.equals("Recent")&&!recent.contains(id)&&prefs().getLong("recent:"+id,0)==0)continue;
@@ -300,14 +326,14 @@ public class PdfManagerActivity extends Activity {
         }
         Collections.sort(shown,(a,b)->{
             if(folderOf(a)!=folderOf(b))return folderOf(a)?-1:1;
-            if(mode.equals("Recent"))return Long.compare(prefs().getLong("recent:"+b.getUri(),0),prefs().getLong("recent:"+a.getUri(),0));
+            if(mode.equals("Recent"))return Long.compare(PdfRecentHistory.time(this,documentKey(b)),PdfRecentHistory.time(this,documentKey(a)));
             if(order.equals("Newest"))return Long.compare(modifiedOf(b),modifiedOf(a));
             if(order.equals("Oldest"))return Long.compare(modifiedOf(a),modifiedOf(b));
             if(order.equals("Largest"))return Long.compare(sizeOf(b),sizeOf(a));
             String an=nameOf(a),bn=nameOf(b);
             return order.equals("Name Z-A")?bn.compareToIgnoreCase(an):an.compareToIgnoreCase(bn);
         });
-        status.setText(scanning?"Scanning PDFs…":tree==null?"Add a storage folder":(mode.equals("Folder")&&currentFolder!=null?nameOf(currentFolder):mode)+" • "+shown.size()+" items • "+layout);
+        status.setText(scanning&&!mode.equals("Recent")?"Scanning PDFs…":tree==null&&!mode.equals("Recent")?"Add a storage folder":(mode.equals("Folder")&&currentFolder!=null?nameOf(currentFolder):mode)+" • "+shown.size()+" items • "+layout);
         for(TextView t:tabLabels){boolean active=t.getContentDescription().toString().equals(mode)||(mode.equals("All PDFs")&&t.getContentDescription().toString().equals("Library"));t.setTextColor(active?(light?0xffe64b40:0xffffffff):(light?0xff737986:0xffb9c4f2));}
         adapter.notifyDataSetChanged();
     }
@@ -321,6 +347,7 @@ public class PdfManagerActivity extends Activity {
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("PDF display options").setView(panel).setNegativeButton("Close",null).create();
         for(String name:new String[]{"List","Condensed","Grid","Book Cover"})panel.addView(button((name.equals(layout)?"✓  ":"")+name,()->{layout=name;prefs().edit().putString("layout",layout).apply();setLayout();refresh();dialog.dismiss();}));
         panel.addView(button(light?"Use dark library":"Use light library",()->{light=!light;prefs().edit().putBoolean("light_library",light).apply();applyLibraryTheme();refresh();dialog.dismiss();}));
+        panel.addView(button("Open PDF from device",()->{dialog.dismiss();pickPdf();}));
         panel.addView(button("Manage saved folders",()->{dialog.dismiss();manageFolders();}));
         panel.addView(button("Offline PDF organizer",()->{dialog.dismiss();startActivity(new Intent(this,PdfOrganizerActivity.class));}));
         panel.addView(button("Rescan",()->{dialog.dismiss();scan();}));dialog.show();
@@ -335,11 +362,13 @@ public class PdfManagerActivity extends Activity {
         screen.setBackgroundColor(light?0xfff1f3f7:0xff18191d);
         header.setBackgroundColor(bar);bottomTabs.setBackgroundColor(bar);filterBar.setBackgroundColor(bar);
         getWindow().setStatusBarColor(bar);getWindow().setNavigationBarColor(bar);
-        getWindow().getDecorView().setSystemUiVisibility(light?View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR:0);
+        androidx.core.view.WindowInsetsControllerCompat bars=androidx.core.view.WindowCompat.getInsetsController(getWindow(),screen);
+        bars.setAppearanceLightStatusBars(light);
+        bars.setAppearanceLightNavigationBars(light);
         for(int i=0;i<header.getChildCount();i++)if(header.getChildAt(i) instanceof TextView)((TextView)header.getChildAt(i)).setTextColor(light?foreground():Color.WHITE);
         for(int i=0;i<filterBar.getChildCount();i++)if(filterBar.getChildAt(i) instanceof TextView && !(filterBar.getChildAt(i) instanceof Button))((TextView)filterBar.getChildAt(i)).setTextColor(light?foreground():Color.WHITE);
         status.setTextColor(foreground());search.setTextColor(foreground());search.setHintTextColor(secondary());
-        for(LinearLayout group:new LinearLayout[]{quickActions,filterBar})for(int i=0;i<group.getChildCount();i++)if(group.getChildAt(i) instanceof Button)TweakControls.button((Button)group.getChildAt(i),light,false);
+        for(int i=0;i<filterBar.getChildCount();i++)if(filterBar.getChildAt(i) instanceof Button)TweakControls.button((Button)filterBar.getChildAt(i),light,false);
         renderFolderStrip();
     }
     private String dateLabel(DocumentFile f){
@@ -363,7 +392,7 @@ public class PdfManagerActivity extends Activity {
     }
     private void actions(DocumentFile f){
         if(folderOf(f)){open(f);return;}
-        String id=f.getUri().toString();
+        String id=documentKey(f);
         new AlertDialog.Builder(this).setTitle(nameOf(f)).setItems(new String[]{"Preview / Open","Rename PDF",
             favorites.contains(id)?"Remove favorite":"Add favorite",read.contains(id)?"Mark unread":"Mark read",
             "File information","Share PDF"},(d,w)->{
@@ -375,7 +404,7 @@ public class PdfManagerActivity extends Activity {
         }).show();
     }
     private void rename(DocumentFile f){
-        EditText input=new EditText(this);String old=nameOf(f);final String previousId=f.getUri().toString();
+        EditText input=new EditText(this);String old=nameOf(f);final String previousId=documentKey(f);
         input.setText(old.toLowerCase(Locale.ROOT).endsWith(".pdf")?old.substring(0,old.length()-4):old);
         new AlertDialog.Builder(this).setTitle("Rename PDF").setView(input).setNegativeButton("Cancel",null)
             .setPositiveButton("Rename",(d,w)->{
@@ -387,20 +416,21 @@ public class PdfManagerActivity extends Activity {
                 io.execute(()->{
                     boolean ok=false;try{ok=f.renameTo(newName);}catch(Exception ignored){}
                     final boolean success=ok;
-                    runOnUiThread(()->{if(closed)return;Toast.makeText(this,success?"Renamed":"Rename denied by storage provider",Toast.LENGTH_LONG).show();if(success){String newId=f.getUri().toString();if(!previousId.equals(newId)){migrateSet(favorites,"favorites",previousId,newId);migrateSet(read,"read",previousId,newId);migrateSet(recent,"recent",previousId,newId);PdfReadingProgress.move(this,previousId,newId);long last=prefs().getLong("recent:"+previousId,0);prefs().edit().remove("recent:"+previousId).putLong("recent:"+newId,last).apply();}scan();}});
+                    runOnUiThread(()->{if(closed)return;Toast.makeText(this,success?"Renamed":"Rename denied by storage provider",Toast.LENGTH_LONG).show();if(success){String newId=documentKey(f);if(previousId.equals(newId)&&recent.contains(previousId))PdfRecentHistory.record(this,newId,newName);if(!previousId.equals(newId)){migrateSet(favorites,"favorites",previousId,newId);migrateSet(read,"read",previousId,newId);PdfRecentHistory.rename(this,previousId,newId,newName);PdfReadingProgress.move(this,previousId,newId);PdfReaderSettings.movePage(this,previousId,newId);}scan();}});
                 });
             }).show();
     }
     private void migrateSet(Set<String> set,String key,String oldId,String newId){if(set.remove(oldId)){set.add(newId);save(key,set);}}
     private void open(DocumentFile f){
         if(folderOf(f)){currentFolder=f;mode="Folder";search.setText("");refresh();return;}
-        if(mode.equals("Bookmarks")){List<Integer> pages=PdfStudyStorage.bookmarks(this,f.getUri().toString());if(!pages.isEmpty()){String[] labels=new String[pages.size()];for(int j=0;j<pages.size();j++)labels[j]="Page "+(pages.get(j)+1);new AlertDialog.Builder(this).setTitle(nameOf(f)).setItems(labels,(d,n)->launch(f,pages.get(n))).show();return;}}
+        if(mode.equals("Bookmarks")){List<Integer> pages=PdfStudyStorage.bookmarks(this,documentKey(f));if(!pages.isEmpty()){String[] labels=new String[pages.size()];for(int j=0;j<pages.size();j++)labels[j]="Page "+(pages.get(j)+1);new AlertDialog.Builder(this).setTitle(nameOf(f)).setItems(labels,(d,n)->launch(f,pages.get(n))).show();return;}}
         launch(f,-1);
     }
     private void launch(DocumentFile f,int page){
-        String id=f.getUri().toString();recent.add(id);save("recent",recent);prefs().edit().putLong("recent:"+id,System.currentTimeMillis()).apply();
-        Intent i=new Intent(this,PdfActivity.class);i.setData(f.getUri());
-        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);if(page>=0)i.putExtra("initial_page",page);
+        Intent i=new Intent(this,PdfActivity.class);
+        if("file".equals(f.getUri().getScheme()))i.putExtra("file_path",documentKey(f));
+        else i.setData(f.getUri()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        if(page>=0)i.putExtra("initial_page",page);
         try{startActivity(i);}catch(Exception e){Toast.makeText(this,"Unable to open PDF: "+e.getMessage(),Toast.LENGTH_LONG).show();}
     }
     private void loadCover(String key,ImageView view){
