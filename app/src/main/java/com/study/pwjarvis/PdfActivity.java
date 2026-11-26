@@ -282,6 +282,9 @@ public class PdfActivity extends Activity {
                 // SAF and Android Downloads files must be opened using their
                 // content URI, not by constructing an inaccessible disk path.
                 descriptor = getContentResolver().openFileDescriptor(uri, "r");
+                // Some providers grant only temporary access; persist it when offered.
+                try { getContentResolver().takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION); }
+                catch (SecurityException | IllegalArgumentException ignored) {}
             } else {
                 String path = getIntent().getStringExtra("file_path");
                 if (path == null && uri != null && "file".equalsIgnoreCase(uri.getScheme()))
@@ -303,6 +306,7 @@ public class PdfActivity extends Activity {
                     : state.getInt("page", 0);
             if(state==null&&getIntent().hasExtra("initial_page"))initialPage=getIntent().getIntExtra("initial_page",initialPage);
             showPage(Math.max(0, Math.min(renderer.getPageCount() - 1, initialPage)));
+            PdfRecentHistory.record(this,documentId,documentTitle.getText().toString());
         } catch (Exception e) {
             Toast.makeText(this, "PDF नहीं खुल पाया: " + e.getMessage(), Toast.LENGTH_LONG).show();
             finish();
