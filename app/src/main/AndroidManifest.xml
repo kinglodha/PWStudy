@@ -23,6 +23,8 @@
         <activity android:name=".CustomizationActivity" android:exported="false" />
         <activity android:name=".DeviceDocumentsActivity" android:exported="false" />
         <activity android:name=".TelegramViewerActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:exported="false" />
+        <activity android:name=".StudyPlannerActivity" android:exported="false" />
+        <activity android:name=".FlashcardsActivity" android:exported="false" />
         <activity android:name=".PdfOrganizerActivity" android:exported="false" />
         <activity android:name=".PdfManagerActivity" android:exported="false" />
         <activity android:name=".ExternalPdfActivity" android:exported="true">
