@@ -134,7 +134,7 @@ public class PdfManagerActivity extends Activity {
                     image.setScaleType(ImageView.ScaleType.FIT_CENTER);
                     image.setBackgroundColor(light?0xffedf0f4:0xff424b55);
                     cell.addView(image,new LinearLayout.LayoutParams(rowLayout?dp(50):-1,dp(layout.equals("Book Cover")?170:layout.equals("Grid")?130:66)));
-                    String key=folderOf(f)?folderCovers.get(documentKey(f)):documentKey(f);Bitmap cached;
+                    String key=folderOf(f)?folderCovers.get(documentKey(f)):f.getUri().toString();Bitmap cached;
                     synchronized(thumbs){cached=thumbs.get(key);}
                     if(cached!=null)image.setImageBitmap(cached);
                     else {image.setImageResource(folderOf(f)?android.R.drawable.ic_menu_agenda:android.R.drawable.ic_menu_gallery);if(key!=null)loadCover(key,image);}
@@ -147,7 +147,7 @@ public class PdfManagerActivity extends Activity {
                 TextView meta=new TextView(PdfManagerActivity.this);
                 String state=mode.equals("Recent")?"Page "+(PdfReaderSettings.lastPage(PdfManagerActivity.this,document)+1):read.contains(document)?"Completed":progress>=100?"Last page":progress>0?progress+"%":"PDF";
                 String size=android.text.format.Formatter.formatShortFileSize(PdfManagerActivity.this,sizeOf(f));
-                meta.setText(folderOf(f)?"Folder":state+" · "+size+(rowLayout?" · "+dateLabel(f):""));
+                meta.setText(folderOf(f)?"Folder":state+(sizeOf(f)>0?" · "+size:"")+(rowLayout?" · "+dateLabel(f):""));
                 meta.setTextSize(11);meta.setTextColor(secondary());LinearLayout actionsRow=new LinearLayout(PdfManagerActivity.this);actionsRow.setGravity(Gravity.CENTER_VERTICAL);
                 if(rowLayout){details.addView(meta);if(progress>0&&!folderOf(f)){ProgressBar indicator=new ProgressBar(PdfManagerActivity.this,null,android.R.attr.progressBarStyleHorizontal);indicator.setMax(100);indicator.setProgress(progress);details.addView(indicator,new LinearLayout.LayoutParams(-1,dp(5)));}}else actionsRow.addView(meta,new LinearLayout.LayoutParams(0,dp(34),1));
                 if(!folderOf(f)){TextView heart=new TextView(PdfManagerActivity.this);heart.setText(favorites.contains(documentKey(f))?"♥":"♡");heart.setTextSize(22);heart.setTextColor(favorites.contains(document)?0xffef8b25:foreground());heart.setGravity(Gravity.CENTER);actionsRow.addView(heart,new LinearLayout.LayoutParams(dp(32),dp(34)));heart.setOnClickListener(v->{String id=documentKey(f);if(!favorites.add(id))favorites.remove(id);save("favorites",favorites);refresh();});}
@@ -427,8 +427,10 @@ public class PdfManagerActivity extends Activity {
         launch(f,-1);
     }
     private void launch(DocumentFile f,int page){
-        Intent i=new Intent(this,PdfActivity.class);i.setData(f.getUri());
-        i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);if(page>=0)i.putExtra("initial_page",page);
+        Intent i=new Intent(this,PdfActivity.class);
+        if("file".equals(f.getUri().getScheme()))i.putExtra("file_path",documentKey(f));
+        else i.setData(f.getUri()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        if(page>=0)i.putExtra("initial_page",page);
         try{startActivity(i);}catch(Exception e){Toast.makeText(this,"Unable to open PDF: "+e.getMessage(),Toast.LENGTH_LONG).show();}
     }
     private void loadCover(String key,ImageView view){
