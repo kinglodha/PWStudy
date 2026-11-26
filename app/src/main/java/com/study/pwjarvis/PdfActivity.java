@@ -647,6 +647,7 @@ public class PdfActivity extends Activity {
         pageIndex = index;
         renderPage();
         PdfReaderSettings.savePage(this, documentId, pageIndex);
+        PdfReadingProgress.record(this, documentId, pageIndex, renderer.getPageCount());
     }
 
     private void renderPage() {
