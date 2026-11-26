@@ -51,6 +51,7 @@ public class PdfActivity extends Activity {
     private LinearLayout topBar;
     private HorizontalScrollView topScroll;
     private LinearLayout fixedHeader;
+    private boolean minimalReader;
     private String documentId;
     private boolean savedFitSetting;
     private int pageIndex = 0;
@@ -88,11 +89,12 @@ public class PdfActivity extends Activity {
         savedFitSetting = PdfReaderSettings.fitWidth(this);
         fitWidth = savedFitSetting;
         themeMode = PdfReaderSettings.theme(this);
+        minimalReader=getPreferences(MODE_PRIVATE).getBoolean("minimal_reader",true);
         updateScreenAwake();
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.rgb(12, 16, 25));
+        root.setBackgroundColor(Color.BLACK);
         image = new ImageView(this);
-        image.setBackgroundColor(Color.WHITE);
+        image.setBackgroundColor(Color.TRANSPARENT);
         image.setScaleType(ImageView.ScaleType.MATRIX);
         image.setAdjustViewBounds(false);
         image.setHapticFeedbackEnabled(false);
@@ -108,7 +110,7 @@ public class PdfActivity extends Activity {
         topScroll = new HorizontalScrollView(this);
         topScroll.setHorizontalScrollBarEnabled(false);
         topScroll.setFillViewport(true);
-        topScroll.setBackgroundColor(Color.argb(240, 9, 15, 27));
+        topScroll.setBackgroundColor(Color.TRANSPARENT);
         topBar = new LinearLayout(this);
         topBar.setOrientation(LinearLayout.HORIZONTAL);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
@@ -133,19 +135,22 @@ public class PdfActivity extends Activity {
         fixedHeader=new LinearLayout(this);
         fixedHeader.setGravity(Gravity.CENTER_VERTICAL);
         fixedHeader.setPadding(dp(4),dp(3),dp(4),dp(3));
-        fixedHeader.setBackgroundColor(0xff131c2c);
-        Button home=headerButton("⌂","Return to Tweak home",this::goHome);
-        fixedHeader.addView(home,new LinearLayout.LayoutParams(dp(48),dp(46)));
+        fixedHeader.setBackgroundColor(Color.TRANSPARENT);
+        TextView back=overlayAction("‹","Back to previous screen",this::finish);
+        fixedHeader.addView(back,new LinearLayout.LayoutParams(dp(44),dp(46)));
         fixedHeader.addView(documentTitle,new LinearLayout.LayoutParams(0,dp(46),1));
         fixedHeader.addView(topScroll,new LinearLayout.LayoutParams(dp(120),dp(48)));
-        Button menu=headerButton("⋮","Reader quick actions",this::quickActions);
+        TextView theme=overlayAction("Theme ▾","Choose reading theme",this::showThemeChoices);
+        theme.setTextSize(13);
+        fixedHeader.addView(theme,new LinearLayout.LayoutParams(dp(80),dp(46)));
+        TextView menu=overlayAction("⋮","Reader options",this::quickActions);
         fixedHeader.addView(menu,new LinearLayout.LayoutParams(dp(44),dp(46)));
         root.addView(fixedHeader,new FrameLayout.LayoutParams(-1,dp(54),Gravity.TOP));
 
         controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
         controls.setPadding(dp(5), dp(5), dp(5), dp(5));
-        controls.setBackgroundColor(Color.argb(225, 10, 13, 20));
+        controls.setBackgroundColor(Color.TRANSPARENT);
         root.addView(controls, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
 
         pageLabel = new TextView(this);
@@ -319,6 +324,12 @@ public class PdfActivity extends Activity {
         if (topBar == null || controls == null || pageSeek == null) return;
         topBar.removeAllViews();
         controls.removeAllViews();
+        topScroll.setVisibility(minimalReader?View.GONE:View.VISIBLE);
+        if(minimalReader){
+            buildPagePanel();
+            updatePageLabel();
+            return;
+        }
         List<String> topItems = PdfToolbarLayout.items(this, 0, false);
         boolean addedTitle = false;
         for (String id : topItems) {
@@ -350,6 +361,44 @@ public class PdfActivity extends Activity {
             controls.addView(scroller, outer);
         }
         updatePageLabel();
+    }
+
+    private TextView overlayAction(String label,String description,Runnable action){
+        TextView item=new TextView(this);
+        item.setText(label);item.setTextColor(Color.WHITE);item.setTextSize(22);
+        item.setGravity(Gravity.CENTER);item.setContentDescription(description);
+        item.setBackground(TweakControls.surface(this,0x66000000,Color.TRANSPARENT,24));
+        item.setFocusable(true);
+        item.setOnClickListener(v->{action.run();scheduleControlsHide();});
+        return item;
+    }
+
+    /** Compact floating page navigation; no full-width toolbar covers the document. */
+    private void buildPagePanel(){
+        LinearLayout panel=new LinearLayout(this);
+        panel.setGravity(Gravity.CENTER_VERTICAL);
+        panel.setBackground(TweakControls.surface(this,0xa6000000,0x33ffffff,24));
+        TextView previous=overlayAction("‹","Previous page",()->showPage(pageIndex-1));
+        TextView next=overlayAction("›","Next page",()->showPage(pageIndex+1));
+        if(pageLabel.getParent() instanceof ViewGroup)((ViewGroup)pageLabel.getParent()).removeView(pageLabel);
+        pageLabel.setTextSize(14);
+        pageLabel.setContentDescription("Current page; tap to jump to another page");
+        pageLabel.setFocusable(true);pageLabel.setOnClickListener(v->showJumpDialog());
+        panel.addView(previous,new LinearLayout.LayoutParams(dp(44),dp(44)));
+        panel.addView(pageLabel,new LinearLayout.LayoutParams(dp(88),dp(44)));
+        panel.addView(next,new LinearLayout.LayoutParams(dp(44),dp(44)));
+        LinearLayout.LayoutParams position=new LinearLayout.LayoutParams(-2,-2);
+        position.gravity=Gravity.START;position.setMargins(dp(8),0,0,dp(12));
+        controls.addView(panel,position);
+    }
+
+    private void showThemeChoices(){
+        String[] choices={"Original PDF · black background","Sepia · black background","AMOLED black · inverted PDF"};
+        controlHandler.removeCallbacks(hideControlsTask);
+        new AlertDialog.Builder(this).setTitle("Reading theme")
+            .setSingleChoiceItems(choices,themeMode,(dialog,index)->{
+                themeMode=index;PdfReaderSettings.setTheme(this,index);applyTheme(false);dialog.dismiss();
+            }).setNegativeButton("Close",null).show();
     }
 
     private void addDocumentTitle() { /* The filename stays fixed outside the scrolling controls. */ }
@@ -453,7 +502,7 @@ public class PdfActivity extends Activity {
     }
     private void quickActions(){
         if(renderer==null)return;
-        String[] actions={"Home","Back to PDF list","First page","Last page","Fit page","Fit width","Bookmark current page","Offline OCR","PDF study tools","Customize controls","Reader settings"};
+        String[] actions={"Home","Back to PDF list","First page","Last page","Fit page","Fit width","Bookmark current page","Offline OCR","PDF study tools","Customize controls","Reader settings","Go to page","Rotate page","Fullscreen","Reading theme",minimalReader?"Show classic toolbar":"Use minimal reader"};
         new AlertDialog.Builder(this).setTitle("Reader actions").setItems(actions,(d,n)->{
             switch(n){
                 case 0:goHome();break;
@@ -467,6 +516,11 @@ public class PdfActivity extends Activity {
                 case 8:openStudyTools();break;
                 case 9:startActivity(new Intent(this,PdfToolbarEditorActivity.class));break;
                 case 10:startActivity(new Intent(this,SettingsActivity.class).putExtra("section","pdf"));break;
+                case 11:showJumpDialog();break;
+                case 12:rotation=(rotation+90)%360;renderPage();break;
+                case 13:toggleFullscreen();break;
+                case 14:showThemeChoices();break;
+                case 15:minimalReader=!minimalReader;getPreferences(MODE_PRIVATE).edit().putBoolean("minimal_reader",minimalReader).apply();pageLabel.setOnClickListener(null);rebuildToolbars();break;
             }
         }).setNegativeButton("Close",null).show();
     }
@@ -630,7 +684,7 @@ public class PdfActivity extends Activity {
         if (image == null) return;
         if (themeMode == 0) {
             image.setColorFilter(null);
-            image.setBackgroundColor(Color.WHITE);
+            image.setBackgroundColor(Color.TRANSPARENT);
         } else if (themeMode == 1) {
             ColorMatrix sepia = new ColorMatrix(new float[]{
                     .393f,.769f,.189f,0,0,
@@ -638,7 +692,7 @@ public class PdfActivity extends Activity {
                     .272f,.534f,.131f,0,0,
                     0,0,0,1,0});
             image.setColorFilter(new ColorMatrixColorFilter(sepia));
-            image.setBackgroundColor(Color.rgb(244, 230, 200));
+            image.setBackgroundColor(Color.TRANSPARENT);
         } else {
             ColorMatrix dark = new ColorMatrix(new float[]{
                     -1,0,0,0,255,
@@ -646,7 +700,7 @@ public class PdfActivity extends Activity {
                     0,0,-1,0,255,
                     0,0,0,1,0});
             image.setColorFilter(new ColorMatrixColorFilter(dark));
-            image.setBackgroundColor(Color.DKGRAY);
+            image.setBackgroundColor(Color.TRANSPARENT);
         }
         if (announce) {
             Toast.makeText(this,
@@ -658,8 +712,8 @@ public class PdfActivity extends Activity {
 
     private void updatePageLabel() {
         if (renderer == null || pageLabel == null) return;
-        pageLabel.setText("Page " + (pageIndex + 1) + " / " + renderer.getPageCount()
-                + "  •  " + Math.round(zoom * 100f) + "%");
+        pageLabel.setText(minimalReader?(pageIndex+1)+"/"+renderer.getPageCount():
+                "Page "+(pageIndex+1)+" / "+renderer.getPageCount()+"  •  "+Math.round(zoom*100f)+"%");
     }
 
     private void updateScreenAwake() {
