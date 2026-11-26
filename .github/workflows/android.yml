@@ -34,6 +34,14 @@ jobs:
             exit 1
           fi
 
+      - name: Run standalone PDF naming regression tests
+        run: |
+          mkdir -p build/pdf-regression
+          javac -encoding UTF-8 -d build/pdf-regression \
+            app/src/main/java/com/study/pwjarvis/PdfNameRules.java \
+            app/src/test/java/com/study/pwjarvis/PdfNameRulesRegression.java
+          java -cp build/pdf-regression com.study.pwjarvis.PdfNameRulesRegression
+
       - name: Build debug APK
         run: |
           for attempt in 1 2 3 4; do
