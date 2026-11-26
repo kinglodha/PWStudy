@@ -22,6 +22,15 @@ jobs:
           gradle-version: '8.7'
       - name: Build debug APK
         run: gradle assembleDebug
+      - name: Report actual APK size
+        run: |
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          bytes=$(stat -c%s "$apk")
+          echo "APK size: $bytes bytes"
+          echo "APK size: $(awk "BEGIN {printf \"%.2f\", $bytes/1000000}") MB" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$bytes" -lt 50000000 ]; then
+            echo "::warning::APK is below the 50 MB target"
+          fi
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
