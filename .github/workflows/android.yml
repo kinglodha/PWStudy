@@ -35,7 +35,13 @@ jobs:
           fi
 
       - name: Build debug APK
-        run: gradle assembleDebug
+        run: |
+          for attempt in 1 2 3 4; do
+            if gradle assembleDebug --stacktrace; then exit 0; fi
+            if [ "$attempt" -eq 4 ]; then exit 1; fi
+            echo "::warning::Build attempt $attempt failed; retrying without changing dependencies"
+            sleep $((attempt * 30))
+          done
 
       - name: Verify advanced feature sources and report APK size
         run: |
@@ -50,7 +56,13 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Build side-by-side preview APK
-        run: gradle -PpwstudyPreview assembleDebug
+        run: |
+          for attempt in 1 2 3 4; do
+            if gradle -PpwstudyPreview assembleDebug --stacktrace; then exit 0; fi
+            if [ "$attempt" -eq 4 ]; then exit 1; fi
+            echo "::warning::Build attempt $attempt failed; retrying without changing dependencies"
+            sleep $((attempt * 30))
+          done
 
       - name: Upload side-by-side preview APK
         uses: actions/upload-artifact@v4
