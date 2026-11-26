@@ -32,6 +32,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.SeekBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -42,6 +43,7 @@ public class PdfActivity extends Activity {
     private PdfRenderer renderer;
     private PdfRenderer.Page page;
     private Bitmap renderedBitmap;
+    private boolean ocrBusy;
     private ImageView image;
     private TextView pageLabel;
     private TextView documentTitle;
@@ -413,6 +415,7 @@ public class PdfActivity extends Activity {
             case "previous": return v -> showPage(pageIndex - 1);
             case "next": return v -> showPage(pageIndex + 1);
             case "study_tools": return v -> openStudyTools();
+            case "offline_ocr": return v -> showPageTools();
             default: return v -> {};
         }
     }
@@ -694,6 +697,135 @@ public class PdfActivity extends Activity {
     @Override protected void onSaveInstanceState(Bundle out) {
         out.putInt("page", pageIndex);
         super.onSaveInstanceState(out);
+    }
+
+    private void showPageTools() {
+        if (ocrBusy) {
+            Toast.makeText(this, "Recognition is already running", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (renderedBitmap == null || renderer == null) return;
+        String[] options = {
+                "English text (offline)",
+                "Hindi / Devanagari text (offline)",
+                "English text — enhance scanned page",
+                "Hindi text — enhance scanned page"
+        };
+        new AlertDialog.Builder(this).setTitle("Page tools")
+                .setItems(options, (dialog, index) -> recognizePage(
+                        index == 1 || index == 3, index >= 2))
+                .setNegativeButton("Cancel", null).show();
+    }
+
+    private void recognizePage(boolean hindi, boolean enhanced) {
+        if (ocrBusy || renderedBitmap == null || renderedBitmap.isRecycled()) return;
+        final Bitmap snapshot;
+        try {
+            // Snapshot independently so changing pages or closing the viewer is safe.
+            int w = renderedBitmap.getWidth(), h = renderedBitmap.getHeight();
+            float scale = Math.min(1f, 2200f / Math.max(w, h));
+            snapshot = Bitmap.createBitmap(Math.max(1, Math.round(w * scale)),
+                    Math.max(1, Math.round(h * scale)), Bitmap.Config.ARGB_8888);
+            android.graphics.Canvas canvas = new android.graphics.Canvas(snapshot);
+            canvas.drawBitmap(renderedBitmap, null,
+                    new android.graphics.Rect(0, 0, snapshot.getWidth(), snapshot.getHeight()),
+                    new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG));
+        } catch (RuntimeException | OutOfMemoryError error) {
+            Toast.makeText(this, "Not enough resources to scan this page", Toast.LENGTH_LONG).show();
+            return;
+        }
+        final int scannedPage = pageIndex + 1;
+        ocrBusy = true;
+        Toast.makeText(this, "Reading page " + scannedPage + " offline…", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            com.google.mlkit.vision.text.TextRecognizer client = null;
+            try {
+                if (enhanced) enhanceForOcr(snapshot);
+                if (hindi) {
+                    client = com.google.mlkit.vision.text.TextRecognition.getClient(
+                            new com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions.Builder().build());
+                } else {
+                    client = com.google.mlkit.vision.text.TextRecognition.getClient(
+                            com.google.mlkit.vision.text.latin.TextRecognizerOptions.DEFAULT_OPTIONS);
+                }
+                final com.google.mlkit.vision.text.TextRecognizer recognizer = client;
+                recognizer.process(com.google.mlkit.vision.common.InputImage.fromBitmap(snapshot, 0))
+                        .addOnCompleteListener(task -> {
+                            try {
+                                if (task.isSuccessful()) {
+                                    finishOcr(scannedPage, task.getResult().getText(), null);
+                                } else {
+                                    finishOcr(scannedPage, null, task.getException());
+                                }
+                            } finally {
+                                recognizer.close();
+                                snapshot.recycle();
+                            }
+                        });
+            } catch (RuntimeException | LinkageError | OutOfMemoryError error) {
+                if (client != null) client.close();
+                snapshot.recycle();
+                runOnUiThread(() -> finishOcr(scannedPage, null, error));
+            }
+        }, "TweakPageOCR").start();
+    }
+
+    private static void enhanceForOcr(Bitmap image) {
+        if (!org.opencv.android.OpenCVLoader.initLocal()) {
+            throw new IllegalStateException("Document enhancement unavailable");
+        }
+        org.opencv.core.Mat source = new org.opencv.core.Mat();
+        org.opencv.core.Mat gray = new org.opencv.core.Mat();
+        org.opencv.core.Mat enhanced = new org.opencv.core.Mat();
+        try {
+            org.opencv.android.Utils.bitmapToMat(image, source);
+            org.opencv.imgproc.Imgproc.cvtColor(source, gray,
+                    org.opencv.imgproc.Imgproc.COLOR_RGBA2GRAY);
+            if (gray.rows() < 31 || gray.cols() < 31) throw new IllegalArgumentException("Page too small for enhancement");
+            org.opencv.imgproc.Imgproc.adaptiveThreshold(gray, enhanced, 255,
+                    org.opencv.imgproc.Imgproc.ADAPTIVE_THRESH_GAUSSIAN_C,
+                    org.opencv.imgproc.Imgproc.THRESH_BINARY, 31, 12);
+            org.opencv.imgproc.Imgproc.cvtColor(enhanced, source,
+                    org.opencv.imgproc.Imgproc.COLOR_GRAY2RGBA);
+            org.opencv.android.Utils.matToBitmap(source, image);
+        } finally {
+            source.release();
+            gray.release();
+            enhanced.release();
+        }
+    }
+
+    private void finishOcr(int scannedPage, String text, Throwable error) {
+        ocrBusy = false;
+        if (isFinishing() || isDestroyed()) return;
+        if (error != null) {
+            android.util.Log.w("TweakOCR", "Page OCR failed", error);
+            Toast.makeText(this, "Could not recognize this page. Try normal mode.",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (text == null || text.trim().isEmpty()) {
+            Toast.makeText(this, "No readable text found", Toast.LENGTH_LONG).show();
+            return;
+        }
+        TextView output = new TextView(this);
+        output.setText(text);
+        output.setTextIsSelectable(true);
+        output.setPadding(24, 16, 24, 16);
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(output);
+        new AlertDialog.Builder(this).setTitle("Recognized text • page " + scannedPage)
+                .setView(scroll)
+                .setPositiveButton("Copy text", (dialog, which) -> {
+                    android.content.ClipboardManager clipboard =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (clipboard != null) {
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(
+                                "Tweak PDF page " + scannedPage, text));
+                        Toast.makeText(this, "Text copied", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Close", null).show();
     }
 
     @Override protected void onDestroy() {

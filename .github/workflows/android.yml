@@ -48,7 +48,14 @@ jobs:
           test -f app/src/main/java/com/study/pwjarvis/MainActivity.java
           test -f app/src/main/java/com/study/pwjarvis/PdfManagerActivity.java
           test -f app/src/main/java/com/study/pwjarvis/TelegramViewerActivity.java
-          stat -c "APK bytes: %s" app/build/outputs/apk/debug/app-debug.apk
+          test -f app/src/main/java/com/study/pwjarvis/PdfReadingProgress.java
+          grep -q 'case "offline_ocr"' app/src/main/java/com/study/pwjarvis/PdfActivity.java
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          bytes=$(stat -c%s "$apk")
+          echo "Actual debug APK: $bytes bytes" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$bytes" -lt 100000000 ]; then
+            echo "::warning::APK remains below 100 MB target; add only functional features"
+          fi
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

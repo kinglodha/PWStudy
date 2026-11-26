@@ -118,7 +118,7 @@ public class PdfStudyToolsActivity extends Activity {
         results = new LinearLayout(this);
         results.setOrientation(LinearLayout.VERTICAL);
         root.addView(results);
-        TextView hint = text("Searching selectable PDF text works offline. Scanned image-only PDFs need OCR, which is not included in this version.", 12, 0xFF9FB1CA, false);
+        TextView hint = text("Searching selectable PDF text works offline. For scanned image-only PDFs, use Offline OCR in the PDF reader toolbar.", 12, 0xFF9FB1CA, false);
         hint.setPadding(0, dp(14), 0, 0);
         root.addView(hint);
         setContentView(scroller);
@@ -284,7 +284,7 @@ public class PdfStudyToolsActivity extends Activity {
                 runOnUiThread(() -> {
                     if (isFinishing()) return;
                     if (pageText.isEmpty()) {
-                        updateStatus("This page has no selectable text. OCR is needed for scans.");
+                        updateStatus("This page has no selectable text. Return to the reader and use Offline OCR.");
                         return;
                     }
                     int max = TextToSpeech.getMaxSpeechInputLength() - 100;
