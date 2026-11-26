@@ -49,6 +49,10 @@ jobs:
           test -f app/src/main/java/com/study/pwjarvis/PdfManagerActivity.java
           test -f app/src/main/java/com/study/pwjarvis/TelegramViewerActivity.java
           test -f app/src/main/java/com/study/pwjarvis/PdfReadingProgress.java
+          test -f app/src/main/java/com/study/pwjarvis/PdfOrganizerActivity.java
+          test -f app/src/main/java/com/study/pwjarvis/FlashcardsActivity.java
+          test -f app/src/main/java/com/study/pwjarvis/StudyPlannerActivity.java
+          test -f app/src/main/java/com/study/pwjarvis/FocusTimerActivity.java
           grep -q 'case "offline_ocr"' app/src/main/java/com/study/pwjarvis/PdfActivity.java
           apk=app/build/outputs/apk/debug/app-debug.apk
           bytes=$(stat -c%s "$apk")

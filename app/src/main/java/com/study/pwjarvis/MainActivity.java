@@ -174,7 +174,8 @@ public class MainActivity extends Activity {
                 {"▶  Video library", "Access saved lecture videos"},
                 {"PDF organizer", "Offline filename review and duplicate audit"},
                 {"Study planner", "Tasks, deadlines and revision checklist"},
-                {"Flashcards", "Offline question-answer decks and spaced review"}
+                {"Flashcards", "Offline question-answer decks and spaced review"},
+                {"Focus timer", "Focus sessions, breaks and local study history"}
         };
         Runnable[] actions = new Runnable[] {
                 () -> choosePdf(PICK_TOOLS_PDF), () -> choosePdf(PICK_TOOLS_PDF),
@@ -183,7 +184,8 @@ public class MainActivity extends Activity {
                 () -> open(CustomizationActivity.class), () -> open(HomeCustomizationActivity.class),
                 () -> open(DeviceDocumentsActivity.class), () -> open(LibraryActivity.class),
                 () -> open(PdfOrganizerActivity.class),
-                () -> open(StudyPlannerActivity.class), () -> open(FlashcardsActivity.class)
+                () -> open(StudyPlannerActivity.class), () -> open(FlashcardsActivity.class),
+                () -> open(FocusTimerActivity.class)
         };
         if (!grid) {
             for (int i = 0; i < features.length; i++) {
