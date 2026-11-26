@@ -693,7 +693,7 @@ public class PdfActivity extends Activity {
     }
 
     @Override protected void onStop() {
-        if (renderer != null) PdfReaderSettings.savePage(this, documentId, pageIndex);
+        if (renderer != null) PdfReaderSettings.flushPage(this, documentId, pageIndex);
         super.onStop();
     }
 
