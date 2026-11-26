@@ -160,23 +160,36 @@ public class MainActivity extends Activity {
     }
 
     private void addRecentPdfs(LinearLayout parent) {
-        addSection(parent, "RECENT PDF FILES", "PDFs saved in PWStudy's offline library");
-        List<File> recent = recentPdfs();
-        if (recent.isEmpty()) {
-            addCard(parent, "No saved PDFs yet", "Use PDFs to select a device file, or save a PDF to the offline library", false,
-                    () -> open(DeviceDocumentsActivity.class));
-            return;
-        }
-        int maximum = Math.min(HomePreferences.recentCount(this), recent.size());
-        for (int i = 0; i < maximum; i++) {
-            File file = recent.get(i);
-            String folder = file.getParentFile() == null ? "Offline" : file.getParentFile().getName();
-            addCard(parent, "📄  " + file.getName(), folder + "  •  Saved PDF", false, () -> {
-                Intent intent = new Intent(this, PdfActivity.class);
-                intent.putExtra("file_path", file.getAbsolutePath());
+        addSection(parent, "RECENT PDF FILES", "Continue from your last reading page");
+        int maximum=HomePreferences.recentCount(this), count=0;
+        java.util.Set<String> displayed=new java.util.HashSet<>();
+        for(String id:PdfRecentHistory.ids(this)) {
+            if(count>=maximum)break;
+            if(!id.startsWith("/")&&!"content".equals(Uri.parse(id).getScheme()))continue;
+            if(!displayed.add(id))continue;
+            String name=PdfRecentHistory.name(this,id);
+            int page=PdfReaderSettings.lastPage(this,id)+1;
+            addCard(parent,"📄  "+name,"Continue reading  •  Page "+page,false,()->{
+                Intent intent=new Intent(this,PdfActivity.class);
+                if(id.startsWith("/"))intent.putExtra("file_path",id);
+                else intent.setData(Uri.parse(id)).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                 startActivity(intent);
             });
+            count++;
         }
+        for(File file:recentPdfs()){
+            if(count>=maximum)break;
+            if(!displayed.add(file.getAbsolutePath()))continue;
+            String folder=file.getParentFile()==null?"Offline":file.getParentFile().getName();
+            addCard(parent,"📄  "+file.getName(),folder+"  •  Saved PDF",false,()->{
+                Intent intent=new Intent(this,PdfActivity.class);
+                intent.putExtra("file_path",file.getAbsolutePath());
+                startActivity(intent);
+            });
+            count++;
+        }
+        if(count==0)addCard(parent,"No saved PDFs yet","Open a PDF to continue reading here",false,
+                ()->open(PdfManagerActivity.class));
     }
 
     private List<File> recentPdfs() {
