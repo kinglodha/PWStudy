@@ -84,6 +84,7 @@ public class PdfActivity extends Activity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        PdfToolbarLayout.applyReaderDefaults(this);
         savedFitSetting = PdfReaderSettings.fitWidth(this);
         fitWidth = savedFitSetting;
         themeMode = PdfReaderSettings.theme(this);
@@ -384,12 +385,9 @@ public class PdfActivity extends Activity {
         button.setAllCaps(false);
         button.setMinWidth(dp(46));
         button.setPadding(dp(5), 0, dp(5), 0);
-        GradientDrawable outline = new GradientDrawable();
-        outline.setColor(0xff25354c);
-        outline.setCornerRadius(dp(PdfToolbarLayout.size(this, id) == 2 ? 14 : 10));
-        outline.setStroke(dp(1), PdfToolbarLayout.accent(this, id));
         button.setBackgroundTintList(null);
-        button.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x337faeff),outline,null));
+        button.setBackground(TweakControls.surface(this,0xff25354c,
+                PdfToolbarLayout.accent(this,id),28));
         button.setOnClickListener(clickAction(id));
         button.setHapticFeedbackEnabled(false);
         // Every control can jump directly to its editor by long-pressing it.
@@ -436,7 +434,9 @@ public class PdfActivity extends Activity {
 
     private Button headerButton(String label,String description,Runnable action){
         Button b=new Button(this);b.setText(label);b.setContentDescription(description);
-        TweakControls.button(b,false,true);b.setTextSize(20);b.setOnClickListener(v->action.run());return b;
+        TweakControls.button(b,false,true);
+        b.setBackground(TweakControls.surface(this,0xff254d83,0xff649afa,28));
+        b.setTextSize(20);b.setOnClickListener(v->action.run());return b;
     }
     private String displayName(Uri uri){
         try(android.database.Cursor cursor=getContentResolver().query(uri,new String[]{android.provider.OpenableColumns.DISPLAY_NAME},null,null,null)){
