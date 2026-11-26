@@ -40,7 +40,7 @@ public class HomeCustomizationActivity extends Activity {
                 HomePreferences.LIBRARY, true);
         toggle(root, "Recent PDFs", "Display PDFs saved inside PWStudy",
                 HomePreferences.RECENT, true);
-        toggle(root, "More tools", "Show quick access to PDF tools and settings",
+        toggle(root, "Study tools shortcut", "Show a single shortcut to the dedicated Tools screen",
                 HomePreferences.TOOLS, true);
 
         section(root, "LAYOUT & CARDS");

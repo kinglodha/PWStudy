@@ -50,6 +50,7 @@ public class PdfActivity extends Activity {
     private SeekBar pageSeek;
     private LinearLayout topBar;
     private HorizontalScrollView topScroll;
+    private LinearLayout fixedHeader;
     private String documentId;
     private boolean savedFitSetting;
     private int pageIndex = 0;
@@ -112,7 +113,7 @@ public class PdfActivity extends Activity {
         topBar.setGravity(Gravity.CENTER_VERTICAL);
         topBar.setPadding(dp(7), dp(3), dp(7), dp(3));
         topScroll.addView(topBar, new FrameLayout.LayoutParams(-2, dp(54)));
-        root.addView(topScroll, new FrameLayout.LayoutParams(-1, dp(54), Gravity.TOP));
+
 
         documentTitle = new TextView(this);
         documentTitle.setText("PDF Reader");
@@ -121,12 +122,24 @@ public class PdfActivity extends Activity {
         documentTitle.setGravity(Gravity.CENTER_VERTICAL);
         documentTitle.setTextColor(Color.WHITE);
         documentTitle.setTextSize(15);
-        documentTitle.setMinWidth(dp(115));
+        documentTitle.setMinWidth(0);
         documentTitle.setPadding(dp(8), 0, dp(6), 0);
         documentTitle.setOnLongClickListener(v -> {
             startActivity(new Intent(this, PdfToolbarEditorActivity.class));
             return true;
         });
+
+        fixedHeader=new LinearLayout(this);
+        fixedHeader.setGravity(Gravity.CENTER_VERTICAL);
+        fixedHeader.setPadding(dp(4),dp(3),dp(4),dp(3));
+        fixedHeader.setBackgroundColor(0xff131c2c);
+        Button home=headerButton("⌂","Return to Tweak home",this::goHome);
+        fixedHeader.addView(home,new LinearLayout.LayoutParams(dp(48),dp(46)));
+        fixedHeader.addView(documentTitle,new LinearLayout.LayoutParams(0,dp(46),1));
+        fixedHeader.addView(topScroll,new LinearLayout.LayoutParams(dp(120),dp(48)));
+        Button menu=headerButton("⋮","Reader quick actions",this::quickActions);
+        fixedHeader.addView(menu,new LinearLayout.LayoutParams(dp(44),dp(46)));
+        root.addView(fixedHeader,new FrameLayout.LayoutParams(-1,dp(54),Gravity.TOP));
 
         controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.VERTICAL);
@@ -264,8 +277,8 @@ public class PdfActivity extends Activity {
             Uri uri = getIntent().getData();
             if (uri != null && "content".equalsIgnoreCase(uri.getScheme())) {
                 documentId = uri.toString();
-                String name = uri.getLastPathSegment();
-                documentTitle.setText(name == null ? "PDF Document" : name);
+                String name = displayName(uri);
+                documentTitle.setText(name);
                 // SAF and Android Downloads files must be opened using their
                 // content URI, not by constructing an inaccessible disk path.
                 descriptor = getContentResolver().openFileDescriptor(uri, "r");
@@ -334,11 +347,7 @@ public class PdfActivity extends Activity {
         updatePageLabel();
     }
 
-    private void addDocumentTitle() {
-        if (documentTitle.getParent() instanceof ViewGroup)
-            ((ViewGroup) documentTitle.getParent()).removeView(documentTitle);
-        topBar.addView(documentTitle, new LinearLayout.LayoutParams(0, dp(46), 1f));
-    }
+    private void addDocumentTitle() { /* The filename stays fixed outside the scrolling controls. */ }
 
     private void addConfiguredItem(LinearLayout row, String id, boolean top, int count) {
         if ("page_indicator".equals(id)) {
@@ -372,10 +381,11 @@ public class PdfActivity extends Activity {
         button.setMinWidth(dp(46));
         button.setPadding(dp(5), 0, dp(5), 0);
         GradientDrawable outline = new GradientDrawable();
-        outline.setColor(Color.TRANSPARENT);
+        outline.setColor(0xff25354c);
         outline.setCornerRadius(dp(PdfToolbarLayout.size(this, id) == 2 ? 14 : 10));
         outline.setStroke(dp(1), PdfToolbarLayout.accent(this, id));
-        button.setBackground(outline);
+        button.setBackgroundTintList(null);
+        button.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x337faeff),outline,null));
         button.setOnClickListener(clickAction(id));
         button.setHapticFeedbackEnabled(false);
         // Every control can jump directly to its editor by long-pressing it.
@@ -420,6 +430,43 @@ public class PdfActivity extends Activity {
         }
     }
 
+    private Button headerButton(String label,String description,Runnable action){
+        Button b=new Button(this);b.setText(label);b.setContentDescription(description);
+        TweakControls.button(b,false,true);b.setTextSize(20);b.setOnClickListener(v->action.run());return b;
+    }
+    private String displayName(Uri uri){
+        try(android.database.Cursor cursor=getContentResolver().query(uri,new String[]{android.provider.OpenableColumns.DISPLAY_NAME},null,null,null)){
+            if(cursor!=null&&cursor.moveToFirst()&&!cursor.isNull(0))return cursor.getString(0);
+        }catch(Exception ignored){}
+        String path=uri.getLastPathSegment();
+        if(path==null)return "PDF Document";
+        int slash=path.lastIndexOf('/');return slash>=0?path.substring(slash+1):path;
+    }
+    private void goHome(){
+        if(renderer!=null)PdfReaderSettings.savePage(this,documentId,pageIndex);
+        startActivity(new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        finish();
+    }
+    private void quickActions(){
+        if(renderer==null)return;
+        String[] actions={"Home","Back to PDF list","First page","Last page","Fit page","Fit width","Bookmark current page","Offline OCR","PDF study tools","Customize controls","Reader settings"};
+        new AlertDialog.Builder(this).setTitle("Reader actions").setItems(actions,(d,n)->{
+            switch(n){
+                case 0:goHome();break;
+                case 1:startActivity(new Intent(this,PdfManagerActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));finish();break;
+                case 2:showPage(0);break;
+                case 3:showPage(renderer.getPageCount()-1);break;
+                case 4:setFitPage();break;
+                case 5:setFitWidth();break;
+                case 6:PdfStudyStorage.toggleBookmark(this,documentId,pageIndex);Toast.makeText(this,PdfStudyStorage.isBookmarked(this,documentId,pageIndex)?"Page bookmarked":"Bookmark removed",Toast.LENGTH_SHORT).show();break;
+                case 7:showPageTools();break;
+                case 8:openStudyTools();break;
+                case 9:startActivity(new Intent(this,PdfToolbarEditorActivity.class));break;
+                case 10:startActivity(new Intent(this,SettingsActivity.class).putExtra("section","pdf"));break;
+            }
+        }).setNegativeButton("Close",null).show();
+    }
+
     /** Open offline document tools without changing the existing PDF reader state. */
     private void openStudyTools() {
         if (documentId == null || renderer == null) return;
@@ -427,7 +474,8 @@ public class PdfActivity extends Activity {
         tools.putExtra("document_id", documentId);
         tools.putExtra("page_index", pageIndex);
         tools.putExtra("page_count", renderer.getPageCount());
-        startActivityForResult(tools, 710);
+        if(getIntent().getData()!=null&&"content".equals(getIntent().getData().getScheme()))tools.setData(getIntent().getData()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try{startActivityForResult(tools,710);}catch(RuntimeException e){android.util.Log.e("TweakReader","PDF tools failed to launch",e);Toast.makeText(this,"Unable to open PDF tools",Toast.LENGTH_LONG).show();}
     }
 
     @Override @SuppressWarnings("deprecation")
@@ -448,7 +496,7 @@ public class PdfActivity extends Activity {
     private void setControlsVisible(boolean visible) {
         controlsVisible = visible;
         if (controls != null) controls.setVisibility(visible ? View.VISIBLE : View.GONE);
-        if (topScroll != null) topScroll.setVisibility(visible ? View.VISIBLE : View.GONE);
+        if (fixedHeader != null) fixedHeader.setVisibility(visible ? View.VISIBLE : View.GONE);
         if (!visible) controlHandler.removeCallbacks(hideControlsTask);
     }
 

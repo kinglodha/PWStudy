@@ -33,9 +33,21 @@ public final class AppAppearance {
         String saved = backgroundUri(activity);
         if (saved != null) {
             try (java.io.InputStream in = activity.getContentResolver().openInputStream(Uri.parse(saved))) {
-                Bitmap bitmap = BitmapFactory.decodeStream(in);
-                if (bitmap != null) root.setBackground(new BitmapDrawable(activity.getResources(), bitmap));
+                BitmapFactory.Options bounds = new BitmapFactory.Options();
+                bounds.inJustDecodeBounds = true;
+                BitmapFactory.decodeStream(in,null,bounds);
+                if(bounds.outWidth>0 && bounds.outHeight>0){
+                    BitmapFactory.Options options=new BitmapFactory.Options();
+                    int max=Math.max(1080,Math.min(2400,Math.max(activity.getResources().getDisplayMetrics().widthPixels,activity.getResources().getDisplayMetrics().heightPixels)));
+                    options.inSampleSize=1;
+                    while(Math.max(bounds.outWidth,bounds.outHeight)/options.inSampleSize>max*2) options.inSampleSize*=2;
+                    try(java.io.InputStream image=activity.getContentResolver().openInputStream(Uri.parse(saved))){
+                        Bitmap bitmap=BitmapFactory.decodeStream(image,null,options);
+                        if(bitmap!=null)root.setBackground(new BitmapDrawable(activity.getResources(),bitmap));
+                    }
+                }
             } catch (Exception ignored) { clearBackground(activity); }
+            catch (OutOfMemoryError ignored) { android.util.Log.w("TweakAppearance","Wallpaper too large; using default background"); }
         }
         applyText(root, textColor(activity), accentColor(activity));
     }

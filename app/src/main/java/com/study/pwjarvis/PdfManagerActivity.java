@@ -37,7 +37,9 @@ public class PdfManagerActivity extends Activity {
         @Override protected boolean removeEldestEntry(Map.Entry<String,Bitmap> e){return size()>48;}
     };
     private GridView grid;
-    private LinearLayout screen, header, quickActions, bottomTabs, filterBar;
+    private LinearLayout screen, header, quickActions, bottomTabs, filterBar, folderStrip;
+    private PdfFolderShortcuts shortcuts;
+    private boolean scanning;
     private boolean light;
     private String filter="All files";
     private final ArrayList<TextView> tabLabels=new ArrayList<>();
@@ -60,6 +62,7 @@ public class PdfManagerActivity extends Activity {
         super.onCreate(b);
         androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(),true);
         getWindow().setStatusBarColor(0xff39489e);getWindow().setNavigationBarColor(0xff39489e);
+        shortcuts=new PdfFolderShortcuts(this);
         favorites.addAll(stored("favorites"));read.addAll(stored("read"));recent.addAll(stored("recent"));
         showHidden=prefs().getBoolean("hidden",false);showCovers=prefs().getBoolean("covers",true);
         hideRead=prefs().getBoolean("hide_read",false);folderPreview=prefs().getBoolean("folder_preview",true);
@@ -68,14 +71,17 @@ public class PdfManagerActivity extends Activity {
         header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=new TextView(this);title.setText("Library");title.setTextSize(24);title.setTypeface(null,Typeface.BOLD);title.setTag("title");
         header.addView(title,new LinearLayout.LayoutParams(0,dp(52),1));
-        header.addView(tool("‹","Back",this::onBackPressed),new LinearLayout.LayoutParams(dp(38),dp(48)));
+        header.addView(tool("⌂","Home",this::goHome),new LinearLayout.LayoutParams(dp(38),dp(48)));
         header.addView(tool("⇅","Sort PDFs",this::sortDialog),new LinearLayout.LayoutParams(dp(38),dp(48)));
         header.addView(tool("⟳","Refresh library",this::scan),new LinearLayout.LayoutParams(dp(38),dp(48)));
         header.addView(tool("⊞","Display settings",this::options),new LinearLayout.LayoutParams(dp(38),dp(48)));
         root.addView(header);
+        HorizontalScrollView foldersScroll=new HorizontalScrollView(this);foldersScroll.setHorizontalScrollBarEnabled(false);
+        folderStrip=new LinearLayout(this);folderStrip.setGravity(Gravity.CENTER_VERTICAL);
+        foldersScroll.addView(folderStrip);root.addView(foldersScroll,new LinearLayout.LayoutParams(-1,dp(48)));
         quickActions=new LinearLayout(this);
         quickActions.addView(button("Open from device",this::pickPdf),new LinearLayout.LayoutParams(0,dp(44),1));
-        quickActions.addView(button("Browse files / +",this::chooseTree),new LinearLayout.LayoutParams(0,dp(44),1));
+        quickActions.addView(button("+ Add folder",this::chooseTree),new LinearLayout.LayoutParams(0,dp(44),1));
         root.addView(quickActions);
         filterBar=new LinearLayout(this);
         filterBar.addView(button("Recent",()->{mode="Recent";refresh();}),new LinearLayout.LayoutParams(0,dp(44),1));
@@ -158,11 +164,58 @@ public class PdfManagerActivity extends Activity {
         grid.setAdapter(adapter);root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
         root.addView(tabs);
         setContentView(root);applyLibraryTheme();setLayout();
-        String saved=prefs().getString("tree",null);
-        if(saved!=null){try{tree=DocumentFile.fromTreeUri(this,Uri.parse(saved));}catch(Exception ignored){}}
-        if(tree!=null)scan();else status.setText("Choose a storage folder to show all PDFs inside it and subfolders.");
+        String saved=shortcuts.active();
+        if(saved!=null)selectFolder(saved);else {renderFolderStrip();status.setText("Add a storage folder to show your PDFs.");}
     }
-    private Button button(String label,Runnable run){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setOnClickListener(v->run.run());return b;}
+    private Button button(String label,Runnable run){Button b=new Button(this);b.setText(label);TweakControls.button(b,light,false);b.setOnClickListener(v->run.run());return b;}
+    private void goHome(){
+        startActivity(new Intent(this,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        finish();
+    }
+    private void renderFolderStrip(){
+        if(folderStrip==null)return;
+        folderStrip.removeAllViews();
+        String selected=shortcuts.active();
+        for(String uri:shortcuts.all()){
+            Button chip=button(shortcuts.label(uri),()->selectFolder(uri));
+            TweakControls.button(chip,light,uri.equals(selected));
+            chip.setMaxWidth(dp(170));chip.setSingleLine();chip.setEllipsize(TextUtils.TruncateAt.END);
+            chip.setOnLongClickListener(v->{manageFolders();return true;});
+            LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,dp(40));params.setMargins(dp(3),0,dp(3),0);
+            folderStrip.addView(chip,params);
+        }
+        Button add=button("+ Folder",this::chooseTree);folderStrip.addView(add,new LinearLayout.LayoutParams(-2,dp(40)));
+        Button manage=button("Manage",this::manageFolders);folderStrip.addView(manage,new LinearLayout.LayoutParams(-2,dp(40)));
+    }
+    private void selectFolder(String uri){
+        if(closed)return;
+        try{
+            DocumentFile selected=DocumentFile.fromTreeUri(this,Uri.parse(uri));
+            if(selected==null)throw new IllegalArgumentException("Invalid storage folder");
+            shortcuts.activate(uri);tree=selected;currentFolder=tree;mode="All PDFs";filter="All files";
+            scanGeneration++;scanning=true;all.clear();metadata.clear();folderCovers.clear();hiddenPaths.clear();
+            search.setText("");renderFolderStrip();refresh();scan();
+        }catch(Exception e){Toast.makeText(this,"Unable to access folder; add it again",Toast.LENGTH_LONG).show();}
+    }
+    private void manageFolders(){
+        List<String> roots=shortcuts.all();
+        if(roots.isEmpty()){chooseTree();return;}
+        String[] labels=new String[roots.size()];
+        for(int i=0;i<roots.size();i++)labels[i]=shortcuts.label(roots.get(i));
+        new AlertDialog.Builder(this).setTitle("Remove a folder shortcut").setItems(labels,(d,i)->{
+            String uri=roots.get(i);
+            new AlertDialog.Builder(this).setTitle("Remove "+labels[i]+"?")
+                .setMessage("Only the shortcut is removed. Your PDFs remain untouched.")
+                .setNegativeButton("Cancel",null).setPositiveButton("Remove",(a,b)->{
+                    boolean active=uri.equals(shortcuts.active());shortcuts.remove(uri);renderFolderStrip();
+                    if(active){
+                        String next=shortcuts.active();
+                        if(next!=null)selectFolder(next);
+                        else {scanGeneration++;scanning=false;tree=null;currentFolder=null;all.clear();metadata.clear();refresh();}
+                    }
+                }).show();
+        }).setNegativeButton("Close",null).show();
+    }
     private void pickPdf(){
         Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("application/pdf").addCategory(Intent.CATEGORY_OPENABLE);
         i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
@@ -187,13 +240,13 @@ public class PdfManagerActivity extends Activity {
         try{
             int flags=data.getFlags()&(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
             getContentResolver().takePersistableUriPermission(uri,flags);
-            tree=DocumentFile.fromTreeUri(this,uri);currentFolder=tree;prefs().edit().putString("tree",uri.toString()).apply();scan();
+            selectFolder(uri.toString());
         }catch(Exception e){Toast.makeText(this,"Storage access failed: "+e.getMessage(),Toast.LENGTH_LONG).show();}
     }
     private void scan(){
         if(closed)return;
         if(tree==null){status.setText("Add a storage folder first.");return;}
-        final int generation=++scanGeneration;
+        final int generation=++scanGeneration;scanning=true;
         status.setText("Scanning PDFs…");
         DocumentFile root=tree;
         io.execute(()->{
@@ -208,6 +261,7 @@ public class PdfManagerActivity extends Activity {
                 DocumentFile dir=queue.removeFirst();
                 if(!visited.add(dir.getUri().toString()))continue;
                 try{for(DocumentFile child:dir.listFiles()){
+                    if(closed||generation!=scanGeneration)break;
                     String name=child.getName();
                     if(name==null)continue;
                     String id=child.getUri().toString(),parent=dir.getUri().toString();
@@ -222,7 +276,7 @@ public class PdfManagerActivity extends Activity {
                 }}catch(Exception ignored){errors++;}
             }
             final int failed=errors;final boolean limited=!queue.isEmpty();
-            runOnUiThread(()->{if(closed||generation!=scanGeneration)return;all.clear();all.addAll(found);metadata.clear();metadata.putAll(discovered);folderCovers.clear();folderCovers.putAll(previews);hiddenPaths.clear();hiddenPaths.addAll(hidden);failedCovers.clear();synchronized(thumbs){thumbs.clear();}refresh();if(failed>0||limited)status.append(" • Partial scan; check folder access or scan a smaller folder");});
+            runOnUiThread(()->{if(closed||generation!=scanGeneration)return;scanning=false;all.clear();all.addAll(found);metadata.clear();metadata.putAll(discovered);folderCovers.clear();folderCovers.putAll(previews);hiddenPaths.clear();hiddenPaths.addAll(hidden);failedCovers.clear();synchronized(thumbs){thumbs.clear();}refresh();if(failed>0||limited)status.append(" • Partial scan; check folder access or scan a smaller folder");});
         });
     }
     private void refresh(){
@@ -253,7 +307,7 @@ public class PdfManagerActivity extends Activity {
             String an=nameOf(a),bn=nameOf(b);
             return order.equals("Name Z-A")?bn.compareToIgnoreCase(an):an.compareToIgnoreCase(bn);
         });
-        status.setText((mode.equals("Folder")&&currentFolder!=null?nameOf(currentFolder):mode)+" • "+shown.size()+" items • "+layout);
+        status.setText(scanning?"Scanning PDFs…":tree==null?"Add a storage folder":(mode.equals("Folder")&&currentFolder!=null?nameOf(currentFolder):mode)+" • "+shown.size()+" items • "+layout);
         for(TextView t:tabLabels){boolean active=t.getContentDescription().toString().equals(mode)||(mode.equals("All PDFs")&&t.getContentDescription().toString().equals("Library"));t.setTextColor(active?(light?0xffe64b40:0xffffffff):(light?0xff737986:0xffb9c4f2));}
         adapter.notifyDataSetChanged();
     }
@@ -267,13 +321,14 @@ public class PdfManagerActivity extends Activity {
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("PDF display options").setView(panel).setNegativeButton("Close",null).create();
         for(String name:new String[]{"List","Condensed","Grid","Book Cover"})panel.addView(button((name.equals(layout)?"✓  ":"")+name,()->{layout=name;prefs().edit().putString("layout",layout).apply();setLayout();refresh();dialog.dismiss();}));
         panel.addView(button(light?"Use dark library":"Use light library",()->{light=!light;prefs().edit().putBoolean("light_library",light).apply();applyLibraryTheme();refresh();dialog.dismiss();}));
+        panel.addView(button("Manage saved folders",()->{dialog.dismiss();manageFolders();}));
         panel.addView(button("Offline PDF organizer",()->{dialog.dismiss();startActivity(new Intent(this,PdfOrganizerActivity.class));}));
         panel.addView(button("Rescan",()->{dialog.dismiss();scan();}));dialog.show();
     }
     private int foreground(){return light?0xff20232b:0xffeeeeee;}
     private int secondary(){return light?0xff676d79:0xffa9c9d8;}
     private TextView tool(String text,String description,Runnable run){
-        TextView t=new TextView(this);t.setText(text);t.setTextSize(22);t.setGravity(Gravity.CENTER);t.setContentDescription(description);t.setOnClickListener(v->run.run());return t;
+        TextView t=new TextView(this);t.setText(text);t.setTextSize(20);t.setGravity(Gravity.CENTER);t.setContentDescription(description);t.setOnClickListener(v->run.run());t.setFocusable(true);return t;
     }
     private void applyLibraryTheme(){
         int bar=light?0xfff5f6fa:0xff39489e;
@@ -284,6 +339,8 @@ public class PdfManagerActivity extends Activity {
         for(int i=0;i<header.getChildCount();i++)if(header.getChildAt(i) instanceof TextView)((TextView)header.getChildAt(i)).setTextColor(light?foreground():Color.WHITE);
         for(int i=0;i<filterBar.getChildCount();i++)if(filterBar.getChildAt(i) instanceof TextView && !(filterBar.getChildAt(i) instanceof Button))((TextView)filterBar.getChildAt(i)).setTextColor(light?foreground():Color.WHITE);
         status.setTextColor(foreground());search.setTextColor(foreground());search.setHintTextColor(secondary());
+        for(LinearLayout group:new LinearLayout[]{quickActions,filterBar})for(int i=0;i<group.getChildCount();i++)if(group.getChildAt(i) instanceof Button)TweakControls.button((Button)group.getChildAt(i),light,false);
+        renderFolderStrip();
     }
     private String dateLabel(DocumentFile f){
         long time=modifiedOf(f);if(time<=0)return "Unknown date";

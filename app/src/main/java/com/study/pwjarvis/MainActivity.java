@@ -45,13 +45,24 @@ public class MainActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
-        renderHome();
+        toolsFromTab = state != null && state.getBoolean("tools_screen", false);
     }
 
     @Override protected void onResume() {
         super.onResume();
         // Re-render preferences after returning from Settings or Customize Home.
-        renderHome();
+        renderCurrent();
+    }
+
+    private void renderCurrent() { if (toolsFromTab) renderTools(); else renderHome(); }
+
+    @Override protected void onSaveInstanceState(Bundle state) {
+        state.putBoolean("tools_screen", toolsFromTab);
+        super.onSaveInstanceState(state);
+    }
+
+    @Override public void onBackPressed() {
+        if (toolsFromTab) { toolsFromTab=false; renderHome(); } else super.onBackPressed();
     }
 
     private void renderHome() {
@@ -70,14 +81,39 @@ public class MainActivity extends Activity {
         addHeader(content);
         addHero(content);
         if (HomePreferences.get(this, HomePreferences.RECENT, true)) addRecentPdfs(content);
-        if (HomePreferences.get(this, HomePreferences.TOOLS, true) || toolsFromTab) addMoreTools(content);
+        if (HomePreferences.get(this, HomePreferences.TOOLS, true))
+            addCard(content, "⊞  Study tools", "Open the dedicated tools screen", false, this::showTools);
         addBottomNavigation(frame);
 
         setContentView(frame);
         AppAppearance.apply(this, content);
-        if (toolsFromTab && toolsAnchor != null) {
-            scroll.post(() -> scroll.smoothScrollTo(0, toolsAnchor.getTop()));
-        }
+
+    }
+
+    private void showTools() {
+        toolsFromTab = true;
+        renderTools();
+    }
+
+    private void renderTools() {
+        LinearLayout frame = new LinearLayout(this);
+        frame.setOrientation(LinearLayout.VERTICAL);
+        frame.setBackgroundColor(BACKGROUND);
+        ScrollView toolScroll = new ScrollView(this);
+        toolScroll.setFillViewport(true);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.setPadding(dp(16), dp(12), dp(16), dp(18));
+        TextView heading = text("‹   Study tools", 24, true, Color.WHITE);
+        heading.setPadding(dp(8),dp(10),0,dp(10));
+        heading.setContentDescription("Back to home");
+        heading.setOnClickListener(v -> { toolsFromTab=false; renderHome(); });
+        body.addView(heading);
+        toolScroll.addView(body);
+        frame.addView(toolScroll, new LinearLayout.LayoutParams(-1,0,1));
+        addMoreTools(body);
+        addBottomNavigation(frame);
+        setContentView(frame);
     }
 
     private void addHeader(LinearLayout parent) {
@@ -175,7 +211,9 @@ public class MainActivity extends Activity {
                 {"PDF organizer", "Offline filename review and duplicate audit"},
                 {"Study planner", "Tasks, deadlines and revision checklist"},
                 {"Flashcards", "Offline question-answer decks and spaced review"},
-                {"Focus timer", "Focus sessions, breaks and local study history"}
+                {"Focus timer", "Focus sessions, breaks and local study history"},
+                {"Offline OCR", "Open a scanned PDF to recognize English or Hindi text"},
+                {"PDF folders", "Manage saved device folders and cover views"}
         };
         Runnable[] actions = new Runnable[] {
                 () -> choosePdf(PICK_TOOLS_PDF), () -> choosePdf(PICK_TOOLS_PDF),
@@ -185,8 +223,10 @@ public class MainActivity extends Activity {
                 () -> open(DeviceDocumentsActivity.class), () -> open(LibraryActivity.class),
                 () -> open(PdfOrganizerActivity.class),
                 () -> open(StudyPlannerActivity.class), () -> open(FlashcardsActivity.class),
-                () -> open(FocusTimerActivity.class)
+                () -> open(FocusTimerActivity.class),
+                () -> choosePdf(PICK_READER_PDF), () -> open(PdfManagerActivity.class)
         };
+        if (features.length != actions.length) { parent.addView(text("Tool configuration unavailable",14,false,Color.WHITE)); return; }
         if (!grid) {
             for (int i = 0; i < features.length; i++) {
                 addCard(toolsAnchor, features[i][0], features[i][1], false, actions[i]);
@@ -235,7 +275,7 @@ public class MainActivity extends Activity {
                         : new int[]{CARD, 0xFF152132});
         background.setCornerRadius(dp(16));
         background.setStroke(dp(1), prominent ? 0xFF77A7E6 : 0xFF334760);
-        wrapper.setBackground(background);
+        wrapper.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x337faeff),background,null));
         TextView name = text(title, compact ? 15 : 16, true, Color.WHITE);
         name.setMaxLines(2);
         name.setEllipsize(android.text.TextUtils.TruncateAt.END);
@@ -278,12 +318,9 @@ public class MainActivity extends Activity {
         LinearLayout navigation = new LinearLayout(this);
         navigation.setOrientation(LinearLayout.HORIZONTAL);
         navigation.setBackgroundColor(0xFF1A202D);
-        addTab(navigation, "⌂\nHome", () -> { toolsFromTab = false; scroll.smoothScrollTo(0, 0); });
+        addTab(navigation, "⌂\nHome", () -> { toolsFromTab = false; renderHome(); });
         addTab(navigation, "▣\nPDFs", () -> open(PdfManagerActivity.class));
-        addTab(navigation, "⊞\nTools", () -> {
-            toolsFromTab = true;
-            renderHome();
-        });
+        addTab(navigation, "⊞\nTools", this::showTools);
         addTab(navigation, "▤\nLibrary", () -> open(LibraryActivity.class));
         addTab(navigation, "⚙\nSettings", () -> open(SettingsActivity.class));
         parent.addView(navigation, new LinearLayout.LayoutParams(-1, dp(66)));
@@ -293,12 +330,15 @@ public class MainActivity extends Activity {
         TextView tab = text(title, 12, false, Color.WHITE);
         tab.setGravity(Gravity.CENTER);
         tab.setContentDescription(title.replace("\n", " "));
+        boolean active=toolsFromTab?title.endsWith("Tools"):title.endsWith("Home");
+        if(active) { tab.setTextColor(0xff9bc7ff); tab.setBackground(TweakControls.surface(this,0xff223753,0xff39557c,14)); }
         row.addView(tab, new LinearLayout.LayoutParams(0, -1, 1));
         tab.setOnClickListener(v -> action.run());
     }
 
     private void open(Class<?> screen) {
-        startActivity(new Intent(this, screen));
+        try { startActivity(new Intent(this, screen)); }
+        catch (RuntimeException e) { android.util.Log.e("TweakNavigation","Cannot open "+screen.getSimpleName(),e); Toast.makeText(this,"Unable to open this screen",Toast.LENGTH_LONG).show(); }
     }
 
     private void openReaderSettings() {
