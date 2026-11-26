@@ -60,7 +60,8 @@ public class PdfManagerActivity extends Activity {
     private void save(String key,Set<String> set){prefs().edit().putStringSet(key,new HashSet<>(set)).apply();}
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
-        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(),true);
+        // Android 15 enforces edge-to-edge for target SDK 35. Own the insets explicitly.
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(),false);
         getWindow().setStatusBarColor(0xff39489e);getWindow().setNavigationBarColor(0xff39489e);
         shortcuts=new PdfFolderShortcuts(this);
         favorites.addAll(stored("favorites"));read.addAll(stored("read"));recent.addAll(stored("recent"));
@@ -68,6 +69,16 @@ public class PdfManagerActivity extends Activity {
         hideRead=prefs().getBoolean("hide_read",false);folderPreview=prefs().getBoolean("folder_preview",true);
         layout=prefs().getString("layout","Book Cover");order=prefs().getString("sort","Name A-Z");light=prefs().getBoolean("light_library",false);
         LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(dp(6),dp(6),dp(6),0);screen=root;
+        // Keep title and sorting controls below network, clock and display cutout.
+        // Also reserve navigation-bar space below the six library tabs.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root,(view,insets)->{
+            androidx.core.graphics.Insets safe=insets.getInsetsIgnoringVisibility(
+                androidx.core.view.WindowInsetsCompat.Type.systemBars() |
+                androidx.core.view.WindowInsetsCompat.Type.displayCutout());
+            androidx.core.graphics.Insets keyboard=insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime());
+            view.setPadding(safe.left+dp(6),safe.top+dp(6),safe.right+dp(6),Math.max(safe.bottom,keyboard.bottom));
+            return androidx.core.view.WindowInsetsCompat.CONSUMED;
+        });
         header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=new TextView(this);title.setText("Library");title.setTextSize(24);title.setTypeface(null,Typeface.BOLD);title.setTag("title");
         header.addView(title,new LinearLayout.LayoutParams(0,dp(52),1));
@@ -160,6 +171,7 @@ public class PdfManagerActivity extends Activity {
         grid.setAdapter(adapter);root.addView(grid,new LinearLayout.LayoutParams(-1,0,1));
         root.addView(tabs);
         setContentView(root);applyLibraryTheme();setLayout();
+        androidx.core.view.ViewCompat.requestApplyInsets(root);
         String saved=shortcuts.active();
         if(saved!=null)selectFolder(saved);else {renderFolderStrip();status.setText("Add a storage folder to show your PDFs.");}
     }
@@ -332,7 +344,9 @@ public class PdfManagerActivity extends Activity {
         screen.setBackgroundColor(light?0xfff1f3f7:0xff18191d);
         header.setBackgroundColor(bar);bottomTabs.setBackgroundColor(bar);filterBar.setBackgroundColor(bar);
         getWindow().setStatusBarColor(bar);getWindow().setNavigationBarColor(bar);
-        getWindow().getDecorView().setSystemUiVisibility(light?View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR:0);
+        androidx.core.view.WindowInsetsControllerCompat bars=androidx.core.view.WindowCompat.getInsetsController(getWindow(),screen);
+        bars.setAppearanceLightStatusBars(light);
+        bars.setAppearanceLightNavigationBars(light);
         for(int i=0;i<header.getChildCount();i++)if(header.getChildAt(i) instanceof TextView)((TextView)header.getChildAt(i)).setTextColor(light?foreground():Color.WHITE);
         for(int i=0;i<filterBar.getChildCount();i++)if(filterBar.getChildAt(i) instanceof TextView && !(filterBar.getChildAt(i) instanceof Button))((TextView)filterBar.getChildAt(i)).setTextColor(light?foreground():Color.WHITE);
         status.setTextColor(foreground());search.setTextColor(foreground());search.setHintTextColor(secondary());
