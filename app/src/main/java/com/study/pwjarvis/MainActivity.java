@@ -84,7 +84,7 @@ public class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        TextView title = text("PWSTUDY", 26, true, Color.WHITE);
+        TextView title = text("TWEAK", 26, true, Color.WHITE);
         row.addView(title, new LinearLayout.LayoutParams(0, dp(52), 1));
         TextView customize = text("⚙", 26, false, Color.WHITE);
         customize.setContentDescription("Customize Home");
@@ -108,7 +108,7 @@ public class MainActivity extends Activity {
         boolean library = HomePreferences.get(this, HomePreferences.LIBRARY, true);
         addSection(parent, "STUDY SPACE", "Quick access to what you use most");
         addCard(parent, "📑  PDFs", "Open PDFs from your phone or Downloads", true,
-                () -> open(DeviceDocumentsActivity.class));
+                () -> open(PdfManagerActivity.class));
         addCard(parent, "＋  Open PDF", "Pick a PDF and start reading instantly", false,
                 () -> choosePdf(PICK_READER_PDF));
         if (telegram) addCard(parent, "✈  Telegram channels", "Your study channels inside PWStudy", false,
@@ -272,7 +272,7 @@ public class MainActivity extends Activity {
         navigation.setOrientation(LinearLayout.HORIZONTAL);
         navigation.setBackgroundColor(0xFF1A202D);
         addTab(navigation, "⌂\nHome", () -> { toolsFromTab = false; scroll.smoothScrollTo(0, 0); });
-        addTab(navigation, "▣\nPDFs", () -> open(DeviceDocumentsActivity.class));
+        addTab(navigation, "▣\nPDFs", () -> open(PdfManagerActivity.class));
         addTab(navigation, "⊞\nTools", () -> {
             toolsFromTab = true;
             renderHome();

@@ -23,6 +23,14 @@
         <activity android:name=".CustomizationActivity" android:exported="false" />
         <activity android:name=".DeviceDocumentsActivity" android:exported="false" />
         <activity android:name=".TelegramViewerActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:exported="false" />
+        <activity android:name=".PdfManagerActivity" android:exported="false" />
+        <activity android:name=".ExternalPdfActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/pdf" />
+            </intent-filter>
+        </activity>
         <activity android:name=".PdfActivity" android:exported="false" />
         <activity android:name=".PlayerActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:exported="false" />
         <activity android:name=".LibraryActivity" android:exported="false" />

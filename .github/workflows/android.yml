@@ -37,6 +37,12 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug
 
+      - name: Verify advanced feature sources and report APK size
+        run: |
+          test -f app/src/main/java/com/study/pwjarvis/MainActivity.java
+          test -f app/src/main/java/com/study/pwjarvis/PdfManagerActivity.java
+          test -f app/src/main/java/com/study/pwjarvis/TelegramViewerActivity.java
+          stat -c "APK bytes: %s" app/build/outputs/apk/debug/app-debug.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

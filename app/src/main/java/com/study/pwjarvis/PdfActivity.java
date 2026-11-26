@@ -286,6 +286,7 @@ public class PdfActivity extends Activity {
                     ? (PdfReaderSettings.rememberPage(this)
                         ? PdfReaderSettings.lastPage(this, documentId) : 0)
                     : state.getInt("page", 0);
+            if(state==null&&getIntent().hasExtra("initial_page"))initialPage=getIntent().getIntExtra("initial_page",initialPage);
             showPage(Math.max(0, Math.min(renderer.getPageCount() - 1, initialPage)));
         } catch (Exception e) {
             Toast.makeText(this, "PDF नहीं खुल पाया: " + e.getMessage(), Toast.LENGTH_LONG).show();
