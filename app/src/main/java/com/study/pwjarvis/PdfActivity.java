@@ -386,7 +386,7 @@ public class PdfActivity extends Activity {
         button.setMinWidth(dp(46));
         button.setPadding(dp(5), 0, dp(5), 0);
         button.setBackgroundTintList(null);
-        button.setBackground(TweakControls.surface(this,0xff25354c,
+        button.setBackground(TweakControls.surface(this,Color.TRANSPARENT,
                 PdfToolbarLayout.accent(this,id),28));
         button.setOnClickListener(clickAction(id));
         button.setHapticFeedbackEnabled(false);
@@ -435,7 +435,7 @@ public class PdfActivity extends Activity {
     private Button headerButton(String label,String description,Runnable action){
         Button b=new Button(this);b.setText(label);b.setContentDescription(description);
         TweakControls.button(b,false,true);
-        b.setBackground(TweakControls.surface(this,0xff254d83,0xff649afa,28));
+        b.setBackground(TweakControls.surface(this,Color.TRANSPARENT,0xff649afa,28));
         b.setTextSize(20);b.setOnClickListener(v->action.run());return b;
     }
     private String displayName(Uri uri){
