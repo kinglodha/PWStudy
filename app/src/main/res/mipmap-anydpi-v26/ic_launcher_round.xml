@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Selected Option 3: 3D teal-purple TWEAK icon, graduation cap and neon ring. -->
-    <background android:drawable="@color/launcher_background"/>
-    <foreground android:drawable="@drawable/tweak_icon"/>
+    <background android:drawable="@android:color/black"/>
+    <foreground android:drawable="@drawable/tweak_icon_inset"/>
 </adaptive-icon>
