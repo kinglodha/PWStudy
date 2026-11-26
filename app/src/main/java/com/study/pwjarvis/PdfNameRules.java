@@ -17,7 +17,7 @@ public final class PdfNameRules {
 
     public static String suggest(String name) {
         if (name == null) return "Unnamed.pdf";
-        String cleaned = Normalizer.normalize(name, Normalizer.Form.NFC);
+        String cleaned = Normalizer.normalize(name, Normalizer.Form.NFC).trim();
         cleaned = cleaned.replaceAll("(?i)(\\.pdf)+$", "");
         cleaned = cleaned.replaceAll("\\[\\s*@[^\\]]+\\]", " ");
         cleaned = cleaned.replaceAll("(?<!\\w)@[\\w.]+", " ");
