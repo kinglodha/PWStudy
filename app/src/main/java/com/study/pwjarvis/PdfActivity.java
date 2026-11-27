@@ -37,11 +37,19 @@ public class PdfActivity extends Activity {
     private int screenWidth;
     private ScaleGestureDetector scaleDetector;
     private boolean ocrBusy;
+    private boolean pagePinching;
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         if (state != null) pendingSlideName = state.getString("gemini_pending_slide");
-        getWindow().setStatusBarColor(Color.rgb(18,18,18));
+        // Apply explicit safe areas for edge-to-edge Android 15 and earlier versions.
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
+        androidx.core.view.WindowInsetsControllerCompat bars =
+                androidx.core.view.WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        bars.setAppearanceLightStatusBars(false);
+        bars.setAppearanceLightNavigationBars(false);
         Uri uri = getIntent().getData();
         if (uri == null) {
             String extra = getIntent().getStringExtra("pdf_uri");
@@ -82,7 +90,14 @@ public class PdfActivity extends Activity {
     private void buildUi() {
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.rgb(24,24,24));
+        root.setBackgroundColor(Color.BLACK);
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+            androidx.core.graphics.Insets safe = insets.getInsets(
+                    androidx.core.view.WindowInsetsCompat.Type.systemBars()
+                            | androidx.core.view.WindowInsetsCompat.Type.displayCutout());
+            view.setPadding(safe.left, safe.top, safe.right, safe.bottom);
+            return insets;
+        });
         LinearLayout controls = new LinearLayout(this);
         controls.setOrientation(LinearLayout.HORIZONTAL);
         root.addView(controls);
@@ -92,13 +107,46 @@ public class PdfActivity extends Activity {
         button("+", controls, v -> changeZoom(zoom * 1.5f));
         button("Go to", controls, v -> jumpToPage());
         button("Marks", controls, v -> showBookmarks());
+        controls.setBackgroundColor(Color.TRANSPARENT);
+        for (int i = 0; i < controls.getChildCount(); i++) {
+            View child = controls.getChildAt(i);
+            if (child instanceof Button) {
+                Button control = (Button) child;
+                control.setTextColor(Color.WHITE);
+                control.setBackground(new android.graphics.drawable.RippleDrawable(
+                        android.content.res.ColorStateList.valueOf(0x33FFFFFF), null,
+                        new android.graphics.drawable.ColorDrawable(Color.WHITE)));
+                control.setMinWidth(0);
+                control.setMinimumWidth(0);
+                control.setPadding(0, 0, 0, 0);
+            }
+        }
         pageLabel = new TextView(this);
         pageLabel.setTextColor(Color.WHITE);
         pageLabel.setGravity(Gravity.CENTER);
         pageLabel.setPadding(8, 8, 8, 8);
         // Keep the original layout: the existing page label also opens page tools.
         pageLabel.setOnClickListener(v -> showPageTools());
-        root.addView(pageLabel);
+        LinearLayout pageToolbar = new LinearLayout(this);
+        pageToolbar.setOrientation(LinearLayout.HORIZONTAL);
+        pageToolbar.setGravity(Gravity.CENTER_VERTICAL);
+        pageToolbar.setBackgroundColor(Color.TRANSPARENT);
+        pageToolbar.addView(pageLabel, new LinearLayout.LayoutParams(0, -2, 1));
+        Button overflow = new Button(this);
+        overflow.setText("⋮");
+        overflow.setTextSize(25);
+        overflow.setTextColor(Color.WHITE);
+        overflow.setContentDescription("PDF page tools");
+        overflow.setPadding(0, 0, 0, 0);
+        overflow.setMinimumWidth(0);
+        overflow.setMinWidth(0);
+        overflow.setBackground(new android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(0x33FFFFFF), null,
+                new android.graphics.drawable.ColorDrawable(Color.WHITE)));
+        int touchTarget = Math.round(48 * getResources().getDisplayMetrics().density);
+        pageToolbar.addView(overflow, new LinearLayout.LayoutParams(touchTarget, touchTarget));
+        overflow.setOnClickListener(v -> showPageTools());
+        root.addView(pageToolbar);
         horizontal = new HorizontalScrollView(this);
         horizontal.setFillViewport(true);
         horizontal.setHorizontalScrollBarEnabled(true);
@@ -108,6 +156,12 @@ public class PdfActivity extends Activity {
         pageImage = new ImageView(this);
         pageImage.setScaleType(ImageView.ScaleType.FIT_CENTER);
         pageImage.setAdjustViewBounds(true);
+        pageImage.setContentDescription("PDF page. Touch and hold to open Gemini analysis.");
+        pageImage.setOnLongClickListener(v -> {
+            if (pagePinching || renderer == null || currentBitmap == null) return false;
+            showGeminiSlideTools();
+            return true;
+        });
         vertical.addView(pageImage, new android.widget.FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         horizontal.addView(vertical, new android.widget.FrameLayout.LayoutParams(
@@ -129,8 +183,27 @@ public class PdfActivity extends Activity {
                     }
                 });
         View.OnTouchListener zoomListener = (view, event) -> {
+            int action = event.getActionMasked();
+            if (action == MotionEvent.ACTION_DOWN) pagePinching = false;
+            if (action == MotionEvent.ACTION_POINTER_DOWN || event.getPointerCount() > 1) {
+                pagePinching = true;
+                view.cancelLongPress();
+                view.setPressed(false);
+                view.getParent().requestDisallowInterceptTouchEvent(true);
+            }
             scaleDetector.onTouchEvent(event);
-            return event.getPointerCount() > 1 || scaleDetector.isInProgress();
+            boolean consumed = pagePinching || scaleDetector.isInProgress();
+            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+                if (consumed) {
+                    view.cancelLongPress();
+                    view.setPressed(false);
+                }
+                view.getParent().requestDisallowInterceptTouchEvent(false);
+                pagePinching = false;
+            }
+            // Let the native View detect long presses for one-finger touches.
+            // Scroll parents cancel the touch when a user drags the page.
+            return consumed;
         };
         pageImage.setOnTouchListener(zoomListener);
         root.addView(horizontal, new LinearLayout.LayoutParams(-1, 0, 1));
@@ -140,6 +213,7 @@ public class PdfActivity extends Activity {
         button("Next ▶", navigation, v -> goTo(pageIndex + 1));
         button("☆ Save", navigation, v -> toggleBookmark());
         setContentView(root);
+        androidx.core.view.ViewCompat.requestApplyInsets(root);
     }
 
     private void changeZoom(float value) {
