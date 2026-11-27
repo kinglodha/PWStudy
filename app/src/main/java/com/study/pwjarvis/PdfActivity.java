@@ -40,6 +40,7 @@ public class PdfActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        if (state != null) pendingSlideName = state.getString("gemini_pending_slide");
         getWindow().setStatusBarColor(Color.rgb(18,18,18));
         Uri uri = getIntent().getData();
         if (uri == null) {
@@ -251,12 +252,169 @@ public class PdfActivity extends Activity {
                 "English text (offline)",
                 "Hindi / Devanagari text (offline)",
                 "English text — enhance scanned page",
-                "Hindi text — enhance scanned page"
+                "Hindi text — enhance scanned page",
+                "Gemini AI — analyze current slide"
         };
         new AlertDialog.Builder(this).setTitle("Page tools")
-                .setItems(options, (dialog, index) -> recognizePage(
-                        index == 1 || index == 3, index >= 2))
+                .setItems(options, (dialog, index) -> {
+                    if (index == 4) showGeminiSlideTools();
+                    else recognizePage(index == 1 || index == 3, index >= 2);
+                })
                 .setNegativeButton("Cancel", null).show();
+    }
+
+    private static final int EXPORT_GEMINI_SLIDE = 701;
+    private boolean geminiShareBusy;
+    private String pendingSlideName;
+
+    private void showGeminiSlideTools() {
+        if (geminiShareBusy || renderer == null || currentBitmap == null) return;
+        final int slide = pageIndex;
+        final String[] prompts = {
+                "Explain this slide in simple Hindi and English. Use only the visible content first. Explain any diagrams and formulas, then give NEET revision points.",
+                "Solve the questions visible on this slide step by step. Explain the reasoning and calculations. If a question is incomplete, say so.",
+                "Create concise NEET revision notes and five practice MCQs from this slide. Clearly distinguish extra knowledge from slide content."
+        };
+        final String[] modes = {"Explain slide", "Solve questions", "Notes and MCQs"};
+        new AlertDialog.Builder(this).setTitle("Gemini AI • slide " + (slide + 1))
+                .setItems(modes, (dialog, choice) -> {
+                    final String prompt = prompts[choice];
+                    new AlertDialog.Builder(this).setTitle("Share with your Gemini account")
+                            .setMessage("Only this slide will be prepared locally. Choose Gemini in the Android share menu if available, then submit using your existing Google account. Gemini needs internet and receives the slide when you send it. Tweak cannot access your Google AI Pro quota directly.")
+                            .setPositiveButton("Share slide", (d, w) -> prepareGeminiSlide(slide, prompt, false))
+                            .setNeutralButton("Export slide", (d, w) -> prepareGeminiSlide(slide, prompt, true))
+                            .setNegativeButton("Cancel", null).show();
+                }).setNegativeButton("Cancel", null).show();
+    }
+
+    private void prepareGeminiSlide(int slide, String prompt, boolean export) {
+        if (geminiShareBusy || renderer == null) return;
+        final Bitmap snapshot;
+        try (PdfRenderer.Page page = renderer.openPage(slide)) {
+            float scale = 2200f / Math.max(page.getWidth(), page.getHeight());
+            int w = Math.max(1, Math.round(page.getWidth() * scale));
+            int h = Math.max(1, Math.round(page.getHeight() * scale));
+            Bitmap image = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            try {
+                image.eraseColor(Color.WHITE);
+                page.render(image, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+            } catch (RuntimeException | OutOfMemoryError error) {
+                image.recycle();
+                throw error;
+            }
+            snapshot = image;
+        } catch (RuntimeException | OutOfMemoryError error) {
+            Toast.makeText(this, "Unable to prepare slide", Toast.LENGTH_LONG).show();
+            return;
+        }
+        geminiShareBusy = true;
+        new Thread(() -> {
+            File result = null;
+            try {
+                File folder = new File(getCacheDir(), "gemini_slides");
+                if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException("Cache unavailable");
+                File[] previous = folder.listFiles();
+                if (previous != null) for (File old : previous) {
+                    if (old.lastModified() < System.currentTimeMillis() - 86400000L
+                            && !old.getName().equals(pendingSlideName)) old.delete();
+                }
+                result = File.createTempFile("slide-" + (slide + 1) + "-", ".png", folder);
+                try (java.io.FileOutputStream out = new java.io.FileOutputStream(result)) {
+                    if (!snapshot.compress(Bitmap.CompressFormat.PNG, 100, out)) throw new IOException("Image export failed");
+                }
+                final File ready = result;
+                runOnUiThread(() -> {
+                    geminiShareBusy = false;
+                    if (isFinishing() || isDestroyed()) return;
+                    showGeminiShareReady(ready, prompt, export);
+                });
+            } catch (Exception | OutOfMemoryError error) {
+                if (result != null) result.delete();
+                runOnUiThread(() -> {
+                    geminiShareBusy = false;
+                    if (!isFinishing() && !isDestroyed())
+                        Toast.makeText(this, "Unable to prepare slide for sharing", Toast.LENGTH_LONG).show();
+                });
+            } finally {
+                snapshot.recycle();
+            }
+        }, "TweakGeminiSlide").start();
+    }
+
+    private void showGeminiShareReady(File file, String prompt, boolean export) {
+        if (export) {
+            pendingSlideName = file.getName();
+            Intent save = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            save.setType("image/png");
+            save.addCategory(Intent.CATEGORY_OPENABLE);
+            save.putExtra(Intent.EXTRA_TITLE, file.getName());
+            try { startActivityForResult(save, EXPORT_GEMINI_SLIDE); }
+            catch (android.content.ActivityNotFoundException error) {
+                pendingSlideName = null;
+                Toast.makeText(this, "No file picker available", Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Slide ready")
+                .setMessage("If Gemini ignores the shared prompt, copy it first. If Gemini is not offered by Android, use Export slide and attach the image manually in Gemini.")
+                .setNeutralButton("Copy prompt", (d, w) -> {
+                    android.content.ClipboardManager clipboard =
+                            (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                    if (clipboard != null) clipboard.setPrimaryClip(
+                            android.content.ClipData.newPlainText("Gemini study prompt", prompt));
+                    showGeminiShareReady(file, prompt, false);
+                })
+                .setPositiveButton("Choose app", (d, w) -> {
+                    try {
+                        Uri image = androidx.core.content.FileProvider.getUriForFile(
+                                this, getPackageName() + ".geminislides", file);
+                        Intent send = new Intent(Intent.ACTION_SEND);
+                        send.setType("image/png");
+                        send.putExtra(Intent.EXTRA_STREAM, image);
+                        send.putExtra(Intent.EXTRA_TEXT, prompt);
+                        send.setClipData(android.content.ClipData.newUri(getContentResolver(), "PDF slide", image));
+                        send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(Intent.createChooser(send, "Share slide with Gemini"));
+                    } catch (RuntimeException error) {
+                        Toast.makeText(this, "Sharing unavailable; export the slide instead", Toast.LENGTH_LONG).show();
+                    }
+                }).setNegativeButton("Cancel", null).show();
+    }
+
+    @Override protected void onSaveInstanceState(Bundle state) {
+        super.onSaveInstanceState(state);
+        state.putString("gemini_pending_slide", pendingSlideName);
+    }
+
+    @Override protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (request != EXPORT_GEMINI_SLIDE) return;
+        String name = pendingSlideName;
+        pendingSlideName = null;
+        if (result != RESULT_OK || data == null || data.getData() == null || name == null) return;
+        if (!name.matches("slide-[0-9]+-[0-9]+\\.png")) {
+            Toast.makeText(this, "Export file unavailable", Toast.LENGTH_LONG).show();
+            return;
+        }
+        final File source = new File(new File(getCacheDir(), "gemini_slides"), name);
+        final Uri destination = data.getData();
+        new Thread(() -> {
+            boolean success = false;
+            try (java.io.InputStream in = new java.io.FileInputStream(source);
+                 java.io.OutputStream out = getContentResolver().openOutputStream(destination, "w")) {
+                if (out == null) throw new IOException("Cannot open destination");
+                byte[] buffer = new byte[8192];
+                int n;
+                while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+                success = true;
+            } catch (Exception ignored) { }
+            final boolean saved = success;
+            runOnUiThread(() -> {
+                if (!isFinishing() && !isDestroyed())
+                    Toast.makeText(this, saved ? "Slide exported. Attach it in Gemini." : "Slide export failed",
+                            Toast.LENGTH_LONG).show();
+            });
+        }, "TweakGeminiExport").start();
     }
 
     private void recognizePage(boolean hindi, boolean enhanced) {
