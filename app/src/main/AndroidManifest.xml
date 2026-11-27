@@ -33,6 +33,12 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" android:mimeType="application/pdf" />
+                <data android:scheme="file" android:mimeType="application/pdf" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
         <activity android:name=".PdfActivity" android:exported="false" />
