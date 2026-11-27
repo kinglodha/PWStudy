@@ -114,6 +114,7 @@ public class SettingsActivity extends Activity {
             link("App icon","Choose your Android launcher icon",()->open("App icon"));
         } else if ("App icon".equals(page)) {
             section("Choose your icon");
+            link("Import from Gallery","Choose your own image for a custom home-screen shortcut",this::pickIcon);
             int current=LauncherIcons.current(this);
             for(int i=0;i<LauncherIcons.NAMES.length;i++){
                 final int selected=i;
@@ -151,6 +152,145 @@ public class SettingsActivity extends Activity {
             link("Privacy","Video screenshot protection",()->open("Privacy"));
         }
     }
+
+    private static final int PICK_CUSTOM_ICON = 772;
+    private static final String CUSTOM_SHORTCUT_ID = "tweak_custom_icon";
+
+    private void pickIcon() {
+        if (android.os.Build.VERSION.SDK_INT < 26) {
+            Toast.makeText(this,"Custom shortcuts require Android 8 or newer",Toast.LENGTH_LONG).show();
+            return;
+        }
+        android.content.Intent pick = new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
+        pick.setType("image/*");
+        pick.addCategory(android.content.Intent.CATEGORY_OPENABLE);
+        pick.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try { startActivityForResult(pick,PICK_CUSTOM_ICON); }
+        catch (android.content.ActivityNotFoundException e) {
+            Toast.makeText(this,"No gallery or image picker available",Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override protected void onActivityResult(int request,int result,android.content.Intent data) {
+        super.onActivityResult(request,result,data);
+        if (request != PICK_CUSTOM_ICON || result != RESULT_OK || data == null || data.getData() == null) return;
+        android.net.Uri uri = data.getData();
+        // Decode on a worker so large gallery images do not stall the settings screen.
+        Toast.makeText(this,"Preparing icon preview",Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            try {
+                android.graphics.Bitmap image = decodeIcon(uri);
+                android.graphics.Bitmap cropped = squareIcon(image,true);
+                android.graphics.Bitmap fitted = squareIcon(image,false);
+                if (image != cropped && image != fitted) image.recycle();
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) showIconPreview(cropped,fitted);
+                });
+            } catch (Exception | OutOfMemoryError e) {
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed())
+                        Toast.makeText(this,"Unable to read this image. Try another photo.",Toast.LENGTH_LONG).show();
+                });
+            }
+        },"tweak-icon-decode").start();
+    }
+
+    private android.graphics.Bitmap decodeIcon(android.net.Uri uri) throws java.io.IOException {
+        // ImageDecoder applies image orientation and supports common modern formats.
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            return android.graphics.ImageDecoder.decodeBitmap(
+                android.graphics.ImageDecoder.createSource(getContentResolver(),uri),
+                (decoder,info,source) -> {
+                    android.util.Size size = info.getSize();
+                    double scale = Math.min(1.0,1024.0/Math.max(size.getWidth(),size.getHeight()));
+                    decoder.setTargetSize(Math.max(1,(int)(size.getWidth()*scale)),
+                                          Math.max(1,(int)(size.getHeight()*scale)));
+                    decoder.setAllocator(android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE);
+                });
+        }
+        android.graphics.BitmapFactory.Options options = new android.graphics.BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        try (java.io.InputStream in=getContentResolver().openInputStream(uri)) {
+            if(in==null)throw new java.io.IOException("Cannot open image");
+            android.graphics.BitmapFactory.decodeStream(in,null,options);
+        }
+        if(options.outWidth<=0 || options.outHeight<=0)throw new java.io.IOException("Invalid image");
+        options.inSampleSize=1;
+        while(Math.max(options.outWidth,options.outHeight)/options.inSampleSize>1024)
+            options.inSampleSize*=2;
+        options.inJustDecodeBounds=false;
+        try (java.io.InputStream in=getContentResolver().openInputStream(uri)) {
+            if(in==null)throw new java.io.IOException("Cannot open image");
+            android.graphics.Bitmap bitmap=android.graphics.BitmapFactory.decodeStream(in,null,options);
+            if(bitmap==null)throw new java.io.IOException("Invalid image");
+            return bitmap;
+        }
+    }
+
+    private android.graphics.Bitmap squareIcon(android.graphics.Bitmap source,boolean crop) {
+        final int edge=192;
+        android.graphics.Bitmap out=android.graphics.Bitmap.createBitmap(edge,edge,android.graphics.Bitmap.Config.ARGB_8888);
+        android.graphics.Canvas canvas=new android.graphics.Canvas(out);
+        canvas.drawColor(Color.BLACK);
+        float sx=(float)edge/source.getWidth(),sy=(float)edge/source.getHeight();
+        float scale=crop?Math.max(sx,sy):Math.min(sx,sy);
+        float w=source.getWidth()*scale,h=source.getHeight()*scale;
+        android.graphics.RectF dst=new android.graphics.RectF((edge-w)/2,(edge-h)/2,(edge+w)/2,(edge+h)/2);
+        canvas.drawBitmap(source,null,dst,new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG|android.graphics.Paint.FILTER_BITMAP_FLAG));
+        return out;
+    }
+
+    private void showIconPreview(android.graphics.Bitmap cropped,android.graphics.Bitmap fitted) {
+        LinearLayout content=new LinearLayout(this);
+        content.setOrientation(1);content.setGravity(Gravity.CENTER);
+        content.setPadding(dp(20),dp(12),dp(20),dp(12));
+        ImageView preview=new ImageView(this);
+        preview.setImageBitmap(cropped);
+        preview.setContentDescription("Custom icon preview");
+        content.addView(preview,new LinearLayout.LayoutParams(dp(120),dp(120)));
+        Switch cropSwitch=new Switch(this);
+        cropSwitch.setText("Fill square (center crop)");
+        cropSwitch.setChecked(true);
+        content.addView(cropSwitch,new LinearLayout.LayoutParams(-1,-2));
+        cropSwitch.setOnCheckedChangeListener((button,checked)->preview.setImageBitmap(checked?cropped:fitted));
+        TextView description=new TextView(this);
+        description.setText("Creates a Tweak home-screen shortcut. The Android app drawer icon and built-in icon choices stay unchanged.");
+        description.setPadding(0,dp(12),0,0);content.addView(description);
+        new AlertDialog.Builder(this).setTitle("Preview custom icon")
+            .setView(content).setNegativeButton("Cancel",null)
+            .setPositiveButton("Apply",(dialog,which)->pinCustomIcon(cropSwitch.isChecked()?cropped:fitted))
+            .show();
+    }
+
+    private void pinCustomIcon(android.graphics.Bitmap bitmap) {
+        if(android.os.Build.VERSION.SDK_INT<26)return;
+        try {
+            android.content.pm.ShortcutManager manager=getSystemService(android.content.pm.ShortcutManager.class);
+            if(manager==null){Toast.makeText(this,"Shortcut service unavailable",Toast.LENGTH_LONG).show();return;}
+            android.content.Intent launch=new android.content.Intent(this,LibraryActivity.class);
+            launch.setAction(android.content.Intent.ACTION_MAIN);
+            launch.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK|android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            android.content.pm.ShortcutInfo shortcut=new android.content.pm.ShortcutInfo.Builder(this,CUSTOM_SHORTCUT_ID)
+                .setShortLabel("Tweak").setLongLabel("Tweak custom icon")
+                .setIcon(android.graphics.drawable.Icon.createWithBitmap(bitmap))
+                .setIntent(launch).build();
+            for(android.content.pm.ShortcutInfo pinned:manager.getPinnedShortcuts()){
+                if(CUSTOM_SHORTCUT_ID.equals(pinned.getId()) && manager.updateShortcuts(java.util.Collections.singletonList(shortcut))){
+                    Toast.makeText(this,"Custom shortcut update requested",Toast.LENGTH_LONG).show();
+                    return;
+                }
+            }
+            if(!manager.isRequestPinShortcutSupported()){
+                Toast.makeText(this,"Your launcher does not support adding custom shortcuts",Toast.LENGTH_LONG).show();
+                return;
+            }
+            boolean requested=manager.requestPinShortcut(shortcut,null);
+            Toast.makeText(this,requested?"Confirm Add to Home screen in your launcher":"Launcher rejected shortcut request",Toast.LENGTH_LONG).show();
+        } catch(RuntimeException e){
+            Toast.makeText(this,"Unable to apply custom icon on this launcher",Toast.LENGTH_LONG).show();
+        }
+    }
+
     void open(String name){page=name;render();}
     void section(String name){
         TextView t=text(name,14,accent); t.setPadding(dp(8),dp(16),0,dp(8)); rows.addView(t);
