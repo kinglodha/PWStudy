@@ -14,11 +14,43 @@
         </activity>
         <activity android:name=".SettingsActivity" android:exported="false"/>
         <activity android:name=".PlayerActivity" android:exported="false" android:configChanges="orientation|screenSize|keyboardHidden"/>
-        <activity android:name=".LibraryActivity" android:exported="true">
+        <activity android:name=".LibraryActivity" android:exported="true"/>
+        <activity-alias android:name=".LauncherDefault" android:targetActivity=".LibraryActivity" android:exported="true" android:enabled="true">
             <intent-filter>
-                <action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias android:name=".LauncherInfinity" android:targetActivity=".LibraryActivity" android:exported="true" android:enabled="false" android:icon="@drawable/tweak_icon_infinity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".LauncherEarth" android:targetActivity=".LibraryActivity" android:exported="true" android:enabled="false" android:icon="@drawable/tweak_icon_earth">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".LauncherAqua" android:targetActivity=".LibraryActivity" android:exported="true" android:enabled="false" android:icon="@drawable/tweak_icon_aqua">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".LauncherGold" android:targetActivity=".LibraryActivity" android:exported="true" android:enabled="false" android:icon="@drawable/tweak_icon_gold">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".LauncherSilver" android:targetActivity=".LibraryActivity" android:exported="true" android:enabled="false" android:icon="@drawable/tweak_icon_silver">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
         <activity android:name=".WebActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/>

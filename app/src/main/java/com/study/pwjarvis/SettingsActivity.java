@@ -110,12 +110,44 @@ public class SettingsActivity extends Activity {
                 final int color=colors[i];
                 link(names[i], color==accent ? "Selected" : "Choose accent",()->{prefs.edit().putInt(ACCENT,color).apply(); render();});
             }
+            section("App icon");
+            link("App icon","Choose your Android launcher icon",()->open("App icon"));
+        } else if ("App icon".equals(page)) {
+            section("Choose your icon");
+            int current=LauncherIcons.current(this);
+            for(int i=0;i<LauncherIcons.NAMES.length;i++){
+                final int selected=i;
+                LinearLayout item=row(LauncherIcons.NAMES[i],i==current?"Selected":"Tap to apply");
+                ImageView image=new ImageView(this);
+                image.setImageDrawable(LauncherIcons.preview(this,i));
+                image.setContentDescription(LauncherIcons.NAMES[i]+" icon");
+                LinearLayout.LayoutParams iconParams=new LinearLayout.LayoutParams(dp(56),dp(56));
+                iconParams.setMarginEnd(dp(14));
+                item.addView(image,0,iconParams);
+                if(i==current)item.addView(text("✓",24,accent));
+                item.setOnClickListener(v->{
+                    if(selected==LauncherIcons.current(this))return;
+                    new AlertDialog.Builder(this).setTitle("Change app icon?")
+                        .setMessage("Your launcher may refresh or require you to re-pin a shortcut. Your study files will not change.")
+                        .setNegativeButton("Cancel",null)
+                        .setPositiveButton("Apply",(d,w)->{
+                            try{
+                                LauncherIcons.apply(this,selected);
+                                Toast.makeText(this,"Icon changed; launcher may take a moment to refresh",Toast.LENGTH_LONG).show();
+                                render();
+                            }catch(RuntimeException e){
+                                Toast.makeText(this,"Unable to change icon",Toast.LENGTH_LONG).show();
+                                render();
+                            }
+                        }).show();
+                });
+            }
         } else if ("Privacy".equals(page)) {
             section("Video privacy");
             toggle("Allow screenshots","When off, the video player requests secure window protection",CAPTURE,true);
         } else {
             link("Player","Gesture controls, orientation, speed and saved progress",()->open("Player"));
-            link("Appearance","AMOLED black and accent colors",()->open("Appearance"));
+            link("Appearance","AMOLED black, accent colors and app icon",()->open("Appearance"));
             link("Privacy","Video screenshot protection",()->open("Privacy"));
         }
     }
@@ -151,5 +183,5 @@ public class SettingsActivity extends Activity {
             .setSingleChoiceItems(choices,selected,(d,n)->{prefs.edit().putInt(key,n).apply();d.dismiss();render();})
             .setNegativeButton("Cancel",null).show());
     }
-    @Override public void onBackPressed(){if(!"Settings".equals(page)){page="Settings";render();}else super.onBackPressed();}
+    @Override public void onBackPressed(){if("App icon".equals(page)){page="Appearance";render();}else if(!"Settings".equals(page)){page="Settings";render();}else super.onBackPressed();}
 }
