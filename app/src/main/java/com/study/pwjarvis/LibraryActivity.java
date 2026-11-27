@@ -127,6 +127,13 @@ public class LibraryActivity extends Activity {
 
         list.addView(label("OFFLINE STUDY LIBRARY"));
 
+        Button settings = makeButton("⚙ Settings");
+        list.addView(settings);
+        settings.setOnClickListener(v -> startActivity(new Intent(this, SettingsActivity.class)));
+        Button video = makeButton("▶ Video Player");
+        list.addView(video);
+        video.setOnClickListener(v -> startActivity(new Intent(this, PlayerActivity.class)));
+
         list.addView(label(
             "Your study materials are stored inside PWStudy."
         ));
