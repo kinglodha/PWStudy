@@ -94,10 +94,44 @@ jobs:
           fi
       - name: Verify standard APK launcher
         run: |
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          analyzer=$(command -v apkanalyzer || find "${ANDROID_HOME}/cmdline-tools" -type f -name apkanalyzer | sort -V | tail -n 1)
+          test -x "$analyzer"
+          "$analyzer" manifest print "$apk" > build/launcher-manifest.xml
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('build/launcher-manifest.xml').getroot()
+          ns = '{http://schemas.android.com/apk/res/android}'
+          app = root.find('application')
+          package = root.get('package')
+          def name(value):
+              if value.startswith('.'):
+                  return package + value
+              return value if '.' in value else package + '.' + value
+          aliases = {}
+          enabled_launchers = []
+          for node in app:
+              if node.tag not in ('activity', 'activity-alias'):
+                  continue
+              for intent in node.findall('intent-filter'):
+                  actions = {x.get(ns+'name') for x in intent.findall('action')}
+                  categories = {x.get(ns+'name') for x in intent.findall('category')}
+                  if 'android.intent.action.MAIN' not in actions or 'android.intent.category.LAUNCHER' not in categories:
+                      continue
+                  component = name(node.get(ns+'name'))
+                  enabled = node.get(ns+'enabled', 'true') != 'false'
+                  if enabled:
+                      enabled_launchers.append(component)
+                  if node.tag == 'activity-alias':
+                      aliases[component] = (name(node.get(ns+'targetActivity')), enabled, node.get(ns+'exported'))
+          prefix = 'com.study.pwjarvis.'
+          assert enabled_launchers == [prefix+'TweakDefaultLauncher'], enabled_launchers
+          assert aliases.get(prefix+'TweakDefaultLauncher') == (prefix+'MainActivity', True, 'true'), aliases
+          assert aliases.get(prefix+'TweakInfinityLauncher') == (prefix+'MainActivity', False, 'true'), aliases
+          print('Verified both packaged icon aliases and the sole enabled launcher.')
+          PY
           aapt=$(find "${ANDROID_HOME}/build-tools" -type f -name aapt | sort -V | tail -n 1)
-          test -x "$aapt"
-          "$aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > build/launcher-badging.txt
-          grep -F "launchable-activity: name='com.study.pwjarvis.TweakDefaultLauncher'" build/launcher-badging.txt
+          "$aapt" dump badging "$apk" > build/launcher-badging.txt
           grep -Fx "application-label:'Tweak'" build/launcher-badging.txt
 
       - name: Upload APK
@@ -117,10 +151,44 @@ jobs:
 
       - name: Verify preview APK launcher
         run: |
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          analyzer=$(command -v apkanalyzer || find "${ANDROID_HOME}/cmdline-tools" -type f -name apkanalyzer | sort -V | tail -n 1)
+          test -x "$analyzer"
+          "$analyzer" manifest print "$apk" > build/launcher-manifest.xml
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          root = ET.parse('build/launcher-manifest.xml').getroot()
+          ns = '{http://schemas.android.com/apk/res/android}'
+          app = root.find('application')
+          package = root.get('package')
+          def name(value):
+              if value.startswith('.'):
+                  return package + value
+              return value if '.' in value else package + '.' + value
+          aliases = {}
+          enabled_launchers = []
+          for node in app:
+              if node.tag not in ('activity', 'activity-alias'):
+                  continue
+              for intent in node.findall('intent-filter'):
+                  actions = {x.get(ns+'name') for x in intent.findall('action')}
+                  categories = {x.get(ns+'name') for x in intent.findall('category')}
+                  if 'android.intent.action.MAIN' not in actions or 'android.intent.category.LAUNCHER' not in categories:
+                      continue
+                  component = name(node.get(ns+'name'))
+                  enabled = node.get(ns+'enabled', 'true') != 'false'
+                  if enabled:
+                      enabled_launchers.append(component)
+                  if node.tag == 'activity-alias':
+                      aliases[component] = (name(node.get(ns+'targetActivity')), enabled, node.get(ns+'exported'))
+          prefix = 'com.study.pwjarvis.'
+          assert enabled_launchers == [prefix+'TweakDefaultLauncher'], enabled_launchers
+          assert aliases.get(prefix+'TweakDefaultLauncher') == (prefix+'MainActivity', True, 'true'), aliases
+          assert aliases.get(prefix+'TweakInfinityLauncher') == (prefix+'MainActivity', False, 'true'), aliases
+          print('Verified both packaged icon aliases and the sole enabled launcher.')
+          PY
           aapt=$(find "${ANDROID_HOME}/build-tools" -type f -name aapt | sort -V | tail -n 1)
-          test -x "$aapt"
-          "$aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > build/launcher-badging.txt
-          grep -F "launchable-activity: name='com.study.pwjarvis.TweakDefaultLauncher'" build/launcher-badging.txt
+          "$aapt" dump badging "$apk" > build/launcher-badging.txt
           grep -Fx "application-label:'Tweak'" build/launcher-badging.txt
 
       - name: Upload side-by-side preview APK
