@@ -76,6 +76,10 @@ public class SettingsActivity extends Activity {
         addText(root, "Make Tweak comfortable for long study sessions.", 13, 0xFFADB8C8);
 
         addHeading(root, "APP");
+        addAction(root, "App icon", "Choose the Tweak launcher icon", this::chooseAppIcon);
+        addPicker(root, "Telegram rotation button position", new String[]{"Bottom left", "Bottom right"},
+                getSharedPreferences("telegram_controls", MODE_PRIVATE).getInt("rotation_position", 0),
+                which -> getSharedPreferences("telegram_controls", MODE_PRIVATE).edit().putInt("rotation_position", which).apply());
         addAction(root, "Study presets", "Exam mode, Night owl and Battery saver reader defaults", this::showPresets);
         addAction(root, "Customize Home", "Show or hide cards, grid layout, recent PDFs and quick tools",
                 () -> startActivity(new Intent(this, HomeCustomizationActivity.class)));
@@ -250,6 +254,38 @@ public class SettingsActivity extends Activity {
                 r.setContentDescription(heading + ": " + choices[position]);
                 dialog.dismiss();
             }).setNegativeButton("Cancel", null).show());
+    }
+
+    private void chooseAppIcon() {
+        String[] labels = {"Original Tweak", "Minimal infinity"};
+        android.content.pm.PackageManager pm = getPackageManager();
+        android.content.ComponentName[] icons = {
+            new android.content.ComponentName(this, "com.study.pwjarvis.TweakDefaultLauncher"),
+            new android.content.ComponentName(this, "com.study.pwjarvis.TweakInfinityLauncher")
+        };
+        int selected = pm.getComponentEnabledSetting(icons[1]) ==
+                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED ? 1 : 0;
+        new AlertDialog.Builder(this).setTitle("App icon")
+                .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                    if (which == selected) { dialog.dismiss(); return; }
+                    try {
+                        int enabled = android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
+                        int disabled = android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+                        int flags = android.content.pm.PackageManager.DONT_KILL_APP;
+                        if (android.os.Build.VERSION.SDK_INT >= 33) {
+                            pm.setComponentEnabledSettings(java.util.Arrays.asList(
+                                new android.content.pm.PackageManager.ComponentEnabledSetting(icons[which], enabled, flags),
+                                new android.content.pm.PackageManager.ComponentEnabledSetting(icons[1 - which], disabled, flags)));
+                        } else {
+                            pm.setComponentEnabledSetting(icons[which], enabled, flags);
+                            pm.setComponentEnabledSetting(icons[1 - which], disabled, flags);
+                        }
+                        notifyUser("App icon changed. Your launcher may take a moment to refresh.");
+                    } catch (Exception e) {
+                        notifyUser("Could not change the launcher icon.");
+                    }
+                    dialog.dismiss();
+                }).setNegativeButton("Cancel", null).show();
     }
 
     private void showPresets() {

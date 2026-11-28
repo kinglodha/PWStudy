@@ -97,7 +97,7 @@ jobs:
           aapt=$(find "${ANDROID_HOME}/build-tools" -type f -name aapt | sort -V | tail -n 1)
           test -x "$aapt"
           "$aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > build/launcher-badging.txt
-          grep -F "launchable-activity: name='com.study.pwjarvis.MainActivity'" build/launcher-badging.txt
+          grep -F "launchable-activity: name='com.study.pwjarvis.TweakDefaultLauncher'" build/launcher-badging.txt
           grep -Fx "application-label:'Tweak'" build/launcher-badging.txt
 
       - name: Upload APK
@@ -120,7 +120,7 @@ jobs:
           aapt=$(find "${ANDROID_HOME}/build-tools" -type f -name aapt | sort -V | tail -n 1)
           test -x "$aapt"
           "$aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > build/launcher-badging.txt
-          grep -F "launchable-activity: name='com.study.pwjarvis.MainActivity'" build/launcher-badging.txt
+          grep -F "launchable-activity: name='com.study.pwjarvis.TweakDefaultLauncher'" build/launcher-badging.txt
           grep -Fx "application-label:'Tweak'" build/launcher-badging.txt
 
       - name: Upload side-by-side preview APK

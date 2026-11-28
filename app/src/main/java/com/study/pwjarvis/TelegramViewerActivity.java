@@ -64,8 +64,8 @@ public class TelegramViewerActivity extends Activity {
             new StudyChannel("Yakeen 2.0 Alpha", "https://t.me/yakeen_2_aplha_2027", "BATCH"),
             new StudyChannel("Yakeen NEET", "https://t.me/YakeenNeet_3", "BATCH"),
             new StudyChannel("PHYSICS", "https://t.me/+1Us9I5v80jNjNDQ1", "PHYSICS"),
-            new StudyChannel("SALEEM SIR PHYSICS", "https://t.me/Saleem_Sir_physics_NEET", "PHYSICS"),
             new StudyChannel("SALEEM SIR PHYSICS PW", "https://t.me/saleem_sir_phy_pw", "PHYSICS"),
+            new StudyChannel("SALEEM SIR PHYSICS", "https://t.me/Saleem_Sir_physics_NEET", "PHYSICS"),
             new StudyChannel("PHYSICAL CHEMISTRY", "https://t.me/+jPzDsZLxVUZmMGVl", "CHEMISTRY"),
             new StudyChannel("INORGANIC CHEMISTRY", "https://t.me/+lVhOzKTDSs84MGJl", "CHEMISTRY"),
             new StudyChannel("ORGANIC CHEMISTRY", "https://t.me/+zrVWpo5mY5FmNDU1", "CHEMISTRY"),
@@ -301,9 +301,12 @@ public class TelegramViewerActivity extends Activity {
             landscapeButton.setTooltipText("Rotate to landscape");
         }
         landscapeButton.setOnClickListener(v -> toggleTelegramLandscape());
+        boolean right = getSharedPreferences("telegram_controls", MODE_PRIVATE)
+                .getInt("rotation_position", 0) == 1;
         FrameLayout.LayoutParams rotationParams = new FrameLayout.LayoutParams(
-                dp(48), dp(48), Gravity.BOTTOM | Gravity.END);
-        rotationParams.setMarginEnd(dp(8));
+                dp(48), dp(48), Gravity.BOTTOM | (right ? Gravity.RIGHT : Gravity.LEFT));
+        rotationParams.leftMargin = right ? 0 : dp(8);
+        rotationParams.rightMargin = right ? dp(8) : 0;
         rotationFooter.addView(landscapeButton, rotationParams);
         webContainer.addView(rotationFooter, new LinearLayout.LayoutParams(-1, dp(48)));
         root.addView(webContainer, new LinearLayout.LayoutParams(-1, 0, 1));

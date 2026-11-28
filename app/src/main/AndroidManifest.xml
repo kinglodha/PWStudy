@@ -45,11 +45,20 @@
         <activity android:name=".PlayerActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:exported="false" />
         <activity android:name=".LibraryActivity" android:exported="false" />
         <activity android:name=".WebActivity" android:configChanges="orientation|screenSize|keyboardHidden" android:exported="false" />
-        <activity android:name=".MainActivity" android:exported="true">
+        <activity android:name=".MainActivity" android:exported="true" />
+        <activity-alias android:name=".TweakDefaultLauncher" android:targetActivity=".MainActivity"
+            android:enabled="true" android:exported="true" android:icon="@mipmap/ic_launcher">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias android:name=".TweakInfinityLauncher" android:targetActivity=".MainActivity"
+            android:enabled="false" android:exported="true" android:icon="@drawable/tweak_icon_minimal_infinity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
     </application>
 </manifest>
