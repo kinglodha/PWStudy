@@ -66,6 +66,50 @@ jobs:
             app/src/test/java/com/study/pwjarvis/PdfNameRulesRegression.java
           java -cp build/pdf-regression com.study.pwjarvis.PdfNameRulesRegression
 
+      - name: Guard advanced navigation and offline feature entry points
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          import xml.etree.ElementTree as ET
+
+          root = Path("app/src/main/java/com/study/pwjarvis")
+          manifest = ET.parse("app/src/main/AndroidManifest.xml").getroot()
+          ns = "{http://schemas.android.com/apk/res/android}"
+          activities = {
+              node.get(ns + "name", "").split(".")[-1]
+              for node in manifest.find("application").findall("activity")
+          }
+          home = (root / "MainActivity.java").read_text(encoding="utf-8")
+          checks = {
+              "PDF manager": ("PdfManagerActivity", "open(PdfManagerActivity.class)"),
+              "Telegram channels": ("TelegramViewerActivity", "open(TelegramViewerActivity.class)"),
+              "offline library": ("LibraryActivity", "open(LibraryActivity.class)"),
+              "settings": ("SettingsActivity", "open(SettingsActivity.class)"),
+              "PDF picker": ("PdfActivity", "choosePdf(PICK_READER_PDF)"),
+              "video picker": ("PlayerActivity", "this::chooseVideo"),
+          }
+          for name, (activity, entry) in checks.items():
+              assert activity in activities, f"{name}: activity missing from manifest"
+              assert (root / (activity + ".java")).is_file(), f"{name}: source missing"
+              assert entry in home, f"{name}: home navigation entry missing"
+              print("Preserved navigation:", name)
+
+          reader = (root / "PdfActivity.java").read_text(encoding="utf-8")
+          player = (root / "PlayerActivity.java").read_text(encoding="utf-8")
+          telegram = (root / "TelegramViewerActivity.java").read_text(encoding="utf-8")
+          for symbol in ("ScaleGestureDetector", "updateImageMatrix", "PdfRenderer"):
+              assert symbol in reader, f"PDF reader regression: {symbol}"
+          for symbol in ("onConfigurationChanged", "ExoPlayer", "enterFullscreen"):
+              assert symbol in player, f"Video player regression: {symbol}"
+          assert "TelegramViewerActivity" in home and len(telegram) > 1000
+          assert "OfflineVideoLibrary" in player
+          assert "PdfOrganizerActivity" in activities
+          assert "FlashcardsActivity" in activities
+          assert "FocusTimerActivity" in activities
+          print("Source-level PDF/video/Telegram/offline navigation checks passed")
+          PY
+
       - name: Build debug APK
         run: |
           for attempt in 1 2 3 4; do
