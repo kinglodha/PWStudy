@@ -37,6 +37,11 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.util.Locale;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 public class TelegramViewerActivity extends Activity {
     private static final int BG = Color.rgb(5, 7, 12);
@@ -60,11 +65,12 @@ public class TelegramViewerActivity extends Activity {
             new StudyChannel("Yakeen NEET", "https://t.me/YakeenNeet_3", "BATCH"),
             new StudyChannel("PHYSICS", "https://t.me/+1Us9I5v80jNjNDQ1", "PHYSICS"),
             new StudyChannel("SALEEM SIR PHYSICS", "https://t.me/Saleem_Sir_physics_NEET", "PHYSICS"),
+            new StudyChannel("SALEEM SIR PHYSICS PW", "https://t.me/saleem_sir_phy_pw", "PHYSICS"),
             new StudyChannel("PHYSICAL CHEMISTRY", "https://t.me/+jPzDsZLxVUZmMGVl", "CHEMISTRY"),
             new StudyChannel("INORGANIC CHEMISTRY", "https://t.me/+lVhOzKTDSs84MGJl", "CHEMISTRY"),
+            new StudyChannel("ORGANIC CHEMISTRY", "https://t.me/+zrVWpo5mY5FmNDU1", "CHEMISTRY"),
             new StudyChannel("BOTANY", "https://t.me/+_MYNwUQF1n43YjRl", "BIOLOGY"),
-            new StudyChannel("ZOOLOGY", "https://t.me/+aLgCob6m9bhlYjU1", "BIOLOGY"),
-            new StudyChannel("ORGANIC CHEMISTRY", "https://t.me/+zrVWpo5mY5FmNDU1", "CHEMISTRY")
+            new StudyChannel("ZOOLOGY", "https://t.me/+aLgCob6m9bhlYjU1", "BIOLOGY")
     };
 
     private WebView web;
@@ -76,7 +82,12 @@ public class TelegramViewerActivity extends Activity {
     private boolean manualLandscape;
     private int orientationBeforeFullscreen = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
     private LinearLayout header;
-    private FrameLayout webContainer;
+    private LinearLayout webContainer;
+    private TextView channelNotice;
+    private long channelNavigationSerial;
+    private String channelListMessage() {
+        return "Choose one of your " + channels.length + " study channels.";
+    }
     private Button studyBackOverlay;
     private TextView status;
     private LinearLayout channelPanel;
@@ -117,7 +128,7 @@ public class TelegramViewerActivity extends Activity {
         root.addView(header);
 
         status = new TextView(this);
-        status.setText("Choose one of your nine study channels.");
+        status.setText(channelListMessage());
         status.setTextColor(0xFFADB8C8);
         status.setTextSize(12);
         status.setPadding(dp(15), dp(4), dp(15), dp(8));
@@ -131,7 +142,8 @@ public class TelegramViewerActivity extends Activity {
         channelScroll.addView(channelPanel);
         root.addView(channelScroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
-        webContainer = new FrameLayout(this);
+        webContainer = new LinearLayout(this);
+        webContainer.setOrientation(LinearLayout.VERTICAL);
         webContainer.setVisibility(View.GONE);
         web = new WebView(this);
         web.setBackgroundColor(BG);
@@ -213,7 +225,7 @@ public class TelegramViewerActivity extends Activity {
                 super.onReceivedError(view, request, error);
                 if (request.isForMainFrame()) {
                     pageFailed = true;
-                    status.setText("Telegram could not load. Check internet and Android WebView.");
+                    showChannelError("Telegram could not load. Check internet and Android WebView.");
                 }
             }
 
@@ -223,7 +235,7 @@ public class TelegramViewerActivity extends Activity {
                 super.onReceivedHttpError(view, request, response);
                 if (request.isForMainFrame() && response.getStatusCode() >= 400) {
                     pageFailed = true;
-                    status.setText("Telegram returned HTTP " + response.getStatusCode()
+                    showChannelError("Telegram returned HTTP " + response.getStatusCode()
                             + ". The page may be unavailable.");
                 }
             }
@@ -233,43 +245,48 @@ public class TelegramViewerActivity extends Activity {
                 super.onPageFinished(view, url);
                 CookieManager.getInstance().flush();
                 if (!pageFailed) {
-                    status.setText("Use Back to return to your nine study channels. "
+                    status.setText("Use Back to return to your " + channels.length + " study channels. "
                             + "Telegram may request sign-in if this device has no saved session.");
+                    if (channelNotice != null) channelNotice.setVisibility(View.GONE);
                 }
             }
         });
-        webContainer.addView(web, new FrameLayout.LayoutParams(-1, -1));
-
-        // Telegram Web is a single-page application. Its own top-left back
-        // arrow can open the unrestricted Telegram inbox instead of PWStudy.
-        // Cover that control with a native button owned by PWStudy.
+        // Native controls occupy their own row, not Telegram's search/header.
+        LinearLayout channelToolbar = new LinearLayout(this);
+        channelToolbar.setGravity(Gravity.CENTER_VERTICAL);
+        channelToolbar.setPadding(dp(8), dp(2), dp(8), dp(2));
         studyBackOverlay = new Button(this);
         studyBackOverlay.setText("← Channels");
         studyBackOverlay.setAllCaps(false);
         studyBackOverlay.setTextSize(13);
-        studyBackOverlay.setTextColor(Color.WHITE);
-        studyBackOverlay.setPadding(0, 0, 0, 0);
-        studyBackOverlay.setBackgroundTintList(
-                android.content.res.ColorStateList.valueOf(PANEL));
         studyBackOverlay.setOnClickListener(v -> showChannelList());
-        FrameLayout.LayoutParams overlayParams = new FrameLayout.LayoutParams(
-                dp(106), dp(64), Gravity.TOP | Gravity.START);
-        webContainer.addView(studyBackOverlay, overlayParams);
-        // A native orientation control also works when Telegram does not expose
-        // an HTML5 fullscreen button (for example on some embedded players).
+        channelToolbar.addView(studyBackOverlay, new LinearLayout.LayoutParams(0, dp(48), 1));
+
         landscapeButton = new Button(this);
         landscapeButton.setText("⛶ Landscape");
         landscapeButton.setAllCaps(false);
         landscapeButton.setTextSize(12);
-        landscapeButton.setTextColor(Color.WHITE);
-        landscapeButton.setBackgroundTintList(
-                android.content.res.ColorStateList.valueOf(PANEL));
         landscapeButton.setOnClickListener(v -> toggleTelegramLandscape());
-        FrameLayout.LayoutParams rotateParams = new FrameLayout.LayoutParams(
-                dp(120), dp(52), Gravity.TOP | Gravity.END);
-        rotateParams.topMargin = dp(6);
-        rotateParams.rightMargin = dp(6);
-        webContainer.addView(landscapeButton, rotateParams);
+        channelToolbar.addView(landscapeButton, new LinearLayout.LayoutParams(0, dp(48), 1));
+        webContainer.addView(channelToolbar, new LinearLayout.LayoutParams(-1, -2));
+
+        channelNotice = new TextView(this);
+        channelNotice.setTextColor(Color.WHITE);
+        channelNotice.setPadding(dp(12), dp(6), dp(12), dp(6));
+        channelNotice.setVisibility(View.GONE);
+        webContainer.addView(channelNotice, new LinearLayout.LayoutParams(-1, -2));
+        FrameLayout telegramContent = new FrameLayout(this);
+        telegramContent.addView(web, new FrameLayout.LayoutParams(-1, -1));
+        // Preserve the existing in-app back protection, but cover only the
+        // leading arrow area instead of the wider Telegram search field.
+        Button arrowGuard = new Button(this);
+        arrowGuard.setText("←");
+        arrowGuard.setContentDescription("Return to study channels");
+        arrowGuard.setPadding(0, 0, 0, 0);
+        arrowGuard.setOnClickListener(v -> showChannelList());
+        telegramContent.addView(arrowGuard, new FrameLayout.LayoutParams(dp(40), dp(44),
+                Gravity.TOP | Gravity.START));
+        webContainer.addView(telegramContent, new LinearLayout.LayoutParams(-1, 0, 1));
         root.addView(webContainer, new LinearLayout.LayoutParams(-1, 0, 1));
 
         FrameLayout outer = new FrameLayout(this);
@@ -278,7 +295,16 @@ public class TelegramViewerActivity extends Activity {
         fullscreenLayer.setBackgroundColor(Color.BLACK);
         fullscreenLayer.setVisibility(View.GONE);
         outer.addView(fullscreenLayer, new FrameLayout.LayoutParams(-1, -1));
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+            Insets safe = insets.getInsets(WindowInsetsCompat.Type.systemBars()
+                    | WindowInsetsCompat.Type.displayCutout());
+            view.setPadding(safe.left, safe.top, safe.right, safe.bottom);
+            return insets;
+        });
         setContentView(outer);
+        updateVideoSystemUi();
+        ViewCompat.requestApplyInsets(root);
         AppAppearance.apply(this, root);
         buildChannelList();
     }
@@ -311,13 +337,29 @@ public class TelegramViewerActivity extends Activity {
         }
     }
 
+    private void showChannelError(String message) {
+        status.setText(message);
+        if (channelNotice != null && webContainer.getVisibility() == View.VISIBLE) {
+            channelNotice.setText(message);
+            channelNotice.setVisibility(View.VISIBLE);
+        }
+    }
+
     private void showWebPage(String url, String message) {
         channelScroll.setVisibility(View.GONE);
         header.setVisibility(View.GONE);
         status.setVisibility(View.GONE);
         webContainer.setVisibility(View.VISIBLE);
         status.setText(message);
-        web.loadUrl(url);
+        pageFailed = false;
+        channelNotice.setVisibility(View.GONE);
+        web.stopLoading();
+        // Force a new document, not only a hash change in the existing SPA.
+        // Cookies and origin-scoped WebView storage remain intact.
+        String destination = url.startsWith(TELEGRAM_WEB + "#")
+                ? TELEGRAM_WEB + "?tweak_channel=" + (++channelNavigationSerial)
+                    + url.substring(TELEGRAM_WEB.length()) : url;
+        web.loadUrl(destination);
     }
 
     private void openChannel(StudyChannel channel) {
@@ -340,13 +382,18 @@ public class TelegramViewerActivity extends Activity {
     }
 
     private void updateVideoSystemUi() {
-        getWindow().getDecorView().setSystemUiVisibility(
-                fullscreenVideo == null ? View.SYSTEM_UI_FLAG_VISIBLE
-                        : View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (fullscreenVideo == null) {
+            getWindow().clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            controller.show(WindowInsetsCompat.Type.systemBars());
+            controller.setAppearanceLightStatusBars(false);
+        } else {
+            controller.setSystemBarsBehavior(
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+            controller.hide(WindowInsetsCompat.Type.systemBars());
+        }
+        if (pageRoot != null) ViewCompat.requestApplyInsets(pageRoot);
     }
 
     private void exitVideoFullscreen(boolean notifyWeb) {
@@ -368,13 +415,13 @@ public class TelegramViewerActivity extends Activity {
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         // Keep the existing Telegram WebView and the playing HTML5 video alive.
-        if (fullscreenVideo != null) updateVideoSystemUi();
+        updateVideoSystemUi();
     }
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus && fullscreenVideo != null) updateVideoSystemUi();
+        if (hasFocus) updateVideoSystemUi();
     }
 
     private void showChannelList() {
@@ -386,10 +433,12 @@ public class TelegramViewerActivity extends Activity {
             web.stopLoading();
         }
         webContainer.setVisibility(View.GONE);
+        channelNotice.setVisibility(View.GONE);
+        updateVideoSystemUi();
         header.setVisibility(View.VISIBLE);
         status.setVisibility(View.VISIBLE);
         channelScroll.setVisibility(View.VISIBLE);
-        status.setText("Choose one of your nine study channels.");
+        status.setText(channelListMessage());
     }
 
     private boolean handleNavigation(Uri uri) {
