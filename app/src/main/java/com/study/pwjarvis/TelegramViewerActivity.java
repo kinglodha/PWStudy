@@ -262,13 +262,7 @@ public class TelegramViewerActivity extends Activity {
         studyBackOverlay.setOnClickListener(v -> showChannelList());
         channelToolbar.addView(studyBackOverlay, new LinearLayout.LayoutParams(0, dp(48), 1));
 
-        landscapeButton = new Button(this);
-        landscapeButton.setText("⛶ Landscape");
-        landscapeButton.setAllCaps(false);
-        landscapeButton.setTextSize(12);
-        landscapeButton.setOnClickListener(v -> toggleTelegramLandscape());
-        channelToolbar.addView(landscapeButton, new LinearLayout.LayoutParams(0, dp(48), 1));
-        webContainer.addView(channelToolbar, new LinearLayout.LayoutParams(-1, -2));
+         webContainer.addView(channelToolbar, new LinearLayout.LayoutParams(-1, -2));
 
         channelNotice = new TextView(this);
         channelNotice.setTextColor(Color.WHITE);
@@ -287,6 +281,31 @@ public class TelegramViewerActivity extends Activity {
         telegramContent.addView(arrowGuard, new FrameLayout.LayoutParams(dp(40), dp(44),
                 Gravity.TOP | Gravity.START));
         webContainer.addView(telegramContent, new LinearLayout.LayoutParams(-1, 0, 1));
+
+        // Reserve a small bottom control row so rotation never covers search,
+        // messages, or Telegram's own compose and video controls.
+        FrameLayout rotationFooter = new FrameLayout(this);
+        landscapeButton = new Button(this);
+        landscapeButton.setText("⟳");
+        landscapeButton.setAllCaps(false);
+        landscapeButton.setTextSize(26);
+        landscapeButton.setGravity(Gravity.CENTER);
+        landscapeButton.setPadding(0, 0, 0, 0);
+        landscapeButton.setMinWidth(0);
+        landscapeButton.setMinimumWidth(0);
+        landscapeButton.setMinHeight(0);
+        landscapeButton.setMinimumHeight(0);
+        landscapeButton.setStateListAnimator(null);
+        landscapeButton.setContentDescription("Rotate to landscape");
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            landscapeButton.setTooltipText("Rotate to landscape");
+        }
+        landscapeButton.setOnClickListener(v -> toggleTelegramLandscape());
+        FrameLayout.LayoutParams rotationParams = new FrameLayout.LayoutParams(
+                dp(48), dp(48), Gravity.BOTTOM | Gravity.END);
+        rotationParams.setMarginEnd(dp(8));
+        rotationFooter.addView(landscapeButton, rotationParams);
+        webContainer.addView(rotationFooter, new LinearLayout.LayoutParams(-1, dp(48)));
         root.addView(webContainer, new LinearLayout.LayoutParams(-1, 0, 1));
 
         FrameLayout outer = new FrameLayout(this);
@@ -306,6 +325,13 @@ public class TelegramViewerActivity extends Activity {
         updateVideoSystemUi();
         ViewCompat.requestApplyInsets(root);
         AppAppearance.apply(this, root);
+        // AppAppearance tints all buttons; override only this icon with a
+        // transparent resting background and subtle pressed-state feedback.
+        landscapeButton.setBackgroundTintList(null);
+        landscapeButton.setBackground(new android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(0x33FFFFFF),
+                null, new android.graphics.drawable.ColorDrawable(Color.WHITE)));
+        landscapeButton.setTextColor(AppAppearance.textColor(this));
         buildChannelList();
     }
 
@@ -372,10 +398,20 @@ public class TelegramViewerActivity extends Activity {
                 + ". Sign in only if Telegram requests it.");
     }
 
+    private void updateRotationIcon() {
+        if (landscapeButton == null) return;
+        landscapeButton.setText(manualLandscape ? "⟲" : "⟳");
+        String action = manualLandscape ? "Rotate to portrait" : "Rotate to landscape";
+        landscapeButton.setContentDescription(action);
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            landscapeButton.setTooltipText(action);
+        }
+    }
+
     private void toggleTelegramLandscape() {
         if (fullscreenVideo != null) return; // HTML5 fullscreen owns rotation.
         manualLandscape = !manualLandscape;
-        landscapeButton.setText(manualLandscape ? "↺ Portrait" : "⛶ Landscape");
+        updateRotationIcon();
         setRequestedOrientation(manualLandscape
                 ? ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                 : ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
@@ -427,7 +463,7 @@ public class TelegramViewerActivity extends Activity {
     private void showChannelList() {
         exitVideoFullscreen(true);
         manualLandscape = false;
-        if (landscapeButton != null) landscapeButton.setText("⛶ Landscape");
+        updateRotationIcon();
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         if (web != null) {
             web.stopLoading();
