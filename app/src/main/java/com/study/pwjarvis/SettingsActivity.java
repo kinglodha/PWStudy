@@ -9,11 +9,18 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
-import android.widget.Spinner;
+import android.widget.EditText;
+import android.text.TextWatcher;
+import android.text.Editable;
+import java.util.ArrayList;
+import java.util.Locale;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.ByteArrayOutputStream;
+import org.json.JSONObject;
 import android.widget.Switch;
 import android.widget.TextView;
 
@@ -21,6 +28,8 @@ import android.widget.TextView;
 public class SettingsActivity extends Activity {
     private final int background = Color.rgb(8, 12, 20);
     private final int card = Color.rgb(22, 30, 44);
+    private final ArrayList<View> searchRows = new ArrayList<>();
+    private static final int EXPORT_READER = 401, IMPORT_READER = 402;
     private int dp(float v) { return (int) (v * getResources().getDisplayMetrics().density + .5f); }
 
     @Override protected void onCreate(Bundle savedInstanceState) {
@@ -32,6 +41,9 @@ public class SettingsActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(18), dp(14), dp(18), dp(32));
         scroll.addView(root);
+        LinearLayout screen = new LinearLayout(this);
+        screen.setOrientation(LinearLayout.VERTICAL);
+        screen.setBackgroundColor(background);
 
         LinearLayout header = new LinearLayout(this);
         header.setGravity(Gravity.CENTER_VERTICAL);
@@ -46,10 +58,25 @@ public class SettingsActivity extends Activity {
         back.setOnClickListener(v -> finish());
         TextView heading = title("Settings", 24, Color.WHITE);
         header.addView(heading, new LinearLayout.LayoutParams(0, dp(52), 1));
-        root.addView(header);
-        addText(root, "Make PWStudy comfortable for long study sessions.", 13, 0xFFADB8C8);
+        screen.addView(header);
+        EditText search = new EditText(this);
+        search.setSingleLine(true);
+        search.setTextSize(16);
+        search.setTextColor(Color.WHITE);
+        search.setHintTextColor(0xFFADB8C8);
+        search.setHint("Search settings…");
+        search.setContentDescription("Search settings");
+        search.setPadding(dp(14), dp(10), dp(14), dp(10));
+        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(-1, -2);
+        searchParams.setMargins(dp(18), 0, dp(18), dp(6));
+        screen.addView(search, searchParams);
+        screen.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+        screen.setFocusableInTouchMode(true);
+        screen.requestFocus();
+        addText(root, "Make Tweak comfortable for long study sessions.", 13, 0xFFADB8C8);
 
         addHeading(root, "APP");
+        addAction(root, "Study presets", "Exam mode, Night owl and Battery saver reader defaults", this::showPresets);
         addAction(root, "Customize Home", "Show or hide cards, grid layout, recent PDFs and quick tools",
                 () -> startActivity(new Intent(this, HomeCustomizationActivity.class)));
         addAction(root, "Appearance & colours", "Background image, text and accent colours",
@@ -83,9 +110,9 @@ public class SettingsActivity extends Activity {
                 PdfReaderSettings.keepAwake(this), value -> PdfReaderSettings.setKeepAwake(this, value));
         int delay = PdfReaderSettings.controlsDelay(this);
         addPicker(pdfSection, "Toolbar auto-hide",
-                new String[]{"Never hide", "After 4 seconds", "After 8 seconds"},
-                delay == 0 ? 0 : delay == 8 ? 2 : 1,
-                which -> PdfReaderSettings.setControlsDelay(this, which == 0 ? 0 : which == 2 ? 8 : 4));
+                new String[]{"Never hide", "2 sec", "4 sec", "6 sec", "8 sec", "10 sec"},
+                delay == 0 ? 0 : delay / 2,
+                which -> PdfReaderSettings.setControlsDelay(this, which * 2));
         addAction(pdfSection, "Reset PDF preferences", "Restore original reading defaults", () ->
                 new AlertDialog.Builder(this).setTitle("Reset PDF settings?")
                         .setMessage("Reader themes, controls and saved reading positions will be reset.")
@@ -95,7 +122,30 @@ public class SettingsActivity extends Activity {
                             recreate();
                         }).show());
 
-        setContentView(scroll);
+        addAction(pdfSection, "Reset reader defaults (keep progress)", "Restore reader options without clearing saved pages",
+                () -> new AlertDialog.Builder(this).setTitle("Reset reader defaults?")
+                    .setMessage("Saved reading positions, files and toolbar layouts are kept.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Reset", (d, w) -> { PdfReaderSettings.resetDefaults(this); recreate(); }).show());
+        addHeading(root, "BACKUP");
+        addAction(root, "Export reader settings", "Save a local JSON backup of reading preferences", () -> chooseBackup(true));
+        addAction(root, "Import reader settings", "Restore reader preferences from a JSON backup", () -> chooseBackup(false));
+        addText(root, "Reader backups do not contain PDFs, account data, saved pages or toolbar layouts.", 12, 0xFFADB8C8);
+        search.addTextChangedListener(new TextWatcher() {
+            public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
+            public void onTextChanged(CharSequence value, int start, int before, int count) {
+                String[] tokens = value.toString().trim().toLowerCase(Locale.ROOT).split("\\s+");
+                for (View row : searchRows) {
+                    String terms = String.valueOf(row.getTag()).toLowerCase(Locale.ROOT);
+                    boolean matches = true;
+                    for (String token : tokens) if (!terms.contains(token)) { matches = false; break; }
+                    row.setVisibility(matches ? View.VISIBLE : View.GONE);
+                }
+                scroll.scrollTo(0, 0);
+            }
+            public void afterTextChanged(Editable value) {}
+        });
+        setContentView(screen);
         if ("pdf".equals(getIntent().getStringExtra("section"))) {
             scroll.post(() -> scroll.smoothScrollTo(0, pdfSection.getTop()));
         }
@@ -130,10 +180,13 @@ public class SettingsActivity extends Activity {
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(card);
         bg.setCornerRadius(dp(14));
+        bg.setStroke(dp(1), 0xFF263244);
+        result.setMinimumHeight(dp(48));
         result.setBackground(bg);
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
         p.bottomMargin = dp(8);
         parent.addView(result, p);
+        searchRows.add(result);
         return result;
     }
     private LinearLayout textColumn(LinearLayout row, String heading, String explanation) {
@@ -154,6 +207,7 @@ public class SettingsActivity extends Activity {
     }
     private void addAction(LinearLayout parent, String heading, String detail, Runnable action) {
         LinearLayout r = row(parent);
+        r.setTag(heading + " " + detail);
         textColumn(r, heading, detail);
         TextView chevron = title("›", 26, 0xFF91AACE);
         chevron.setPadding(dp(12), 0, 0, 0);
@@ -164,9 +218,11 @@ public class SettingsActivity extends Activity {
     private interface OnToggle { void change(boolean v); }
     private void addSwitch(LinearLayout parent, String heading, String detail, boolean current, OnToggle action) {
         LinearLayout r = row(parent);
+        r.setTag(heading + " " + detail);
         textColumn(r, heading, detail);
         Switch s = new Switch(this);
         s.setChecked(current);
+        s.setMinHeight(dp(48));
         s.setContentDescription(heading);
         s.setOnCheckedChangeListener((button, checked) -> action.change(checked));
         r.addView(s);
@@ -175,33 +231,91 @@ public class SettingsActivity extends Activity {
     private interface OnChoice { void choose(int position); }
     private void addPicker(LinearLayout parent, String heading, String[] choices, int selected, OnChoice action) {
         LinearLayout r = row(parent);
-        TextView name = title(heading, 14, Color.WHITE);
-        r.addView(name, new LinearLayout.LayoutParams(0, -2, 1));
-        Spinner spinner = new Spinner(this);
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, choices) {
-            @Override public View getView(int position, View convertView, android.view.ViewGroup parent) {
-                TextView label = (TextView) super.getView(position, convertView, parent);
-                label.setTextColor(Color.WHITE);
-                label.setTextSize(13);
-                return label;
-            }
-            @Override public View getDropDownView(int position, View convertView, android.view.ViewGroup parent) {
-                TextView label = (TextView) super.getDropDownView(position, convertView, parent);
-                label.setTextColor(Color.WHITE);
-                label.setBackgroundColor(card);
-                label.setPadding(dp(10), dp(8), dp(6), dp(8));
-                return label;
-            }
-        };
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinner.setAdapter(adapter);
-        spinner.setSelection(selected);
-        spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+        r.setTag(heading + " " + android.text.TextUtils.join(" ", choices)
+            + ("Reading theme".equals(heading) ? " dark mode night eye comfort" : " toolbar timeout hide"));
+        LinearLayout column = textColumn(r, heading, null);
+        final int[] current = {Math.max(0, Math.min(selected, choices.length - 1))};
+        TextView active = title(choices[current[0]], 14, 0xFFE2E8F0);
+        active.setPadding(0, dp(5), 0, 0);
+        column.addView(active);
+        TextView chevron = title("⌄", 24, 0xFF8E9BAE);
+        chevron.setPadding(dp(12), 0, dp(4), 0);
+        r.addView(chevron);
+        r.setContentDescription(heading + ": " + choices[current[0]]);
+        r.setOnClickListener(v -> new AlertDialog.Builder(this).setTitle(heading)
+            .setSingleChoiceItems(choices, current[0], (dialog, position) -> {
+                current[0] = position;
                 action.choose(position);
-            }
-            @Override public void onNothingSelected(android.widget.AdapterView<?> parent) {}
-        });
-        r.addView(spinner, new LinearLayout.LayoutParams(dp(155), dp(48)));
+                active.setText(choices[position]);
+                r.setContentDescription(heading + ": " + choices[position]);
+                dialog.dismiss();
+            }).setNegativeButton("Cancel", null).show());
+    }
+
+    private void showPresets() {
+        String[] names = {"Exam mode", "Night owl", "Battery saver"};
+        String[] details = {
+            "Normal theme, fit width, remember page, swipe navigation, keep awake, controls stay visible.",
+            "Night/inverted theme, fit width, remember page, swipe navigation, normal screen timeout, 4 sec toolbar.",
+            "Night/inverted theme, fit width, remember page, swipe navigation, normal screen timeout, 2 sec toolbar."
+        };
+        new AlertDialog.Builder(this).setTitle("Reader presets").setItems(names, (d, i) ->
+            new AlertDialog.Builder(this).setTitle("Apply " + names[i] + "?")
+                .setMessage(details[i] + "\n\nYour files, home layout and saved reading positions remain untouched. Battery savings depend on your display and device.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Apply", (dialog, which) -> {
+                    PdfReaderSettings.applyDefaults(this, i == 0 ? 0 : 2, true, true, true,
+                        i == 0, i == 0 ? 0 : i == 1 ? 4 : 2);
+                    recreate();
+                }).show()).setNegativeButton("Cancel", null).show();
+    }
+
+    private void chooseBackup(boolean export) {
+        Intent intent = new Intent(export ? Intent.ACTION_CREATE_DOCUMENT : Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(export ? "application/json" : "*/*");
+        if (export) intent.putExtra(Intent.EXTRA_TITLE, "tweak-reader-settings.json");
+        try { startActivityForResult(intent, export ? EXPORT_READER : IMPORT_READER); }
+        catch (android.content.ActivityNotFoundException e) { notifyUser("Document picker unavailable."); }
+    }
+
+    @Override protected void onActivityResult(int request, int result, Intent data) {
+        super.onActivityResult(request, result, data);
+        if (result != RESULT_OK || data == null || data.getData() == null) return;
+        if (request == EXPORT_READER) {
+            try (OutputStream out = getContentResolver().openOutputStream(data.getData(), "wt")) {
+                if (out == null) throw new java.io.IOException("Cannot open destination");
+                out.write(PdfReaderSettings.exportDefaults(this).toString(2).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                out.flush();
+                notifyUser("Reader preferences exported.");
+            } catch (Exception e) { notifyUser("Could not export reader preferences."); }
+        } else if (request == IMPORT_READER) {
+            try (InputStream in = getContentResolver().openInputStream(data.getData())) {
+                if (in == null) throw new java.io.IOException("Cannot open backup");
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                byte[] buffer = new byte[2048];
+                int n;
+                while ((n = in.read(buffer)) != -1) {
+                    if (bytes.size() + n > 65536) throw new java.io.IOException("Backup is too large");
+                    bytes.write(buffer, 0, n);
+                }
+                JSONObject settings = new JSONObject(bytes.toString("UTF-8"));
+                PdfReaderSettings.validateDefaults(settings);
+                new AlertDialog.Builder(this).setTitle("Restore reader preferences?")
+                    .setMessage("Only the reader defaults will change. Files, saved pages and other settings are kept.")
+                    .setNegativeButton("Cancel", null)
+                    .setPositiveButton("Restore", (d, w) -> {
+                        try {
+                            PdfReaderSettings.importDefaults(this, settings);
+                            notifyUser("Reader preferences restored.");
+                            recreate();
+                        } catch (Exception e) { notifyUser("Invalid reader backup."); }
+                    }).show();
+            } catch (Exception e) { notifyUser("Invalid or unreadable reader backup. No settings changed."); }
+        }
+    }
+
+    private void notifyUser(String message) {
+        android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show();
     }
 }
