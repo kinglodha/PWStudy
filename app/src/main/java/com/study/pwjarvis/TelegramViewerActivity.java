@@ -326,11 +326,15 @@ public class TelegramViewerActivity extends Activity {
         ViewCompat.requestApplyInsets(root);
         AppAppearance.apply(this, root);
         // AppAppearance tints all buttons; override only this icon with a
-        // transparent resting background and subtle pressed-state feedback.
+        // lightly translucent circular background and pressed-state feedback.
         landscapeButton.setBackgroundTintList(null);
+        android.graphics.drawable.GradientDrawable rotationBackground =
+                new android.graphics.drawable.GradientDrawable();
+        rotationBackground.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        rotationBackground.setColor(0x332F3540);
         landscapeButton.setBackground(new android.graphics.drawable.RippleDrawable(
                 android.content.res.ColorStateList.valueOf(0x33FFFFFF),
-                null, new android.graphics.drawable.ColorDrawable(Color.WHITE)));
+                rotationBackground, null));
         landscapeButton.setTextColor(AppAppearance.textColor(this));
         buildChannelList();
     }
